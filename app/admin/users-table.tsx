@@ -20,6 +20,9 @@ export default function UsersTable({
   plans: Plan[];
 }) {
   const [users, setUsers] = useState(initialUsers);
+  const [resetOpenId, setResetOpenId] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [resetMsg, setResetMsg] = useState("");
 
   async function toggleAdmin(userId: string, isAdmin: boolean) {
     setUsers((prev) =>
@@ -47,6 +50,23 @@ export default function UsersTable({
     });
   }
 
+  async function resetPassword(userId: string) {
+    setResetMsg("");
+    const res = await fetch(`/api/admin/users/${userId}/password`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: newPassword }),
+    });
+    if (res.ok) {
+      setResetMsg("Senha atualizada.");
+      setNewPassword("");
+      setTimeout(() => setResetOpenId(null), 1200);
+    } else {
+      const json = await res.json();
+      setResetMsg(json.error ?? "Erro ao trocar senha.");
+    }
+  }
+
   return (
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
       <table className="w-full text-sm">
@@ -56,6 +76,7 @@ export default function UsersTable({
             <th className="px-4 py-3">Plano</th>
             <th className="px-4 py-3">Contas</th>
             <th className="px-4 py-3">Admin</th>
+            <th className="px-4 py-3">Senha</th>
           </tr>
         </thead>
         <tbody>
@@ -85,6 +106,49 @@ export default function UsersTable({
                 >
                   {u.is_super_admin ? "Remover" : "Tornar admin"}
                 </button>
+              </td>
+              <td className="px-4 py-3">
+                {resetOpenId === u.id ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="password"
+                      placeholder="Nova senha"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="border border-[var(--border-strong)] rounded-md px-2 py-1 text-sm w-32"
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => resetPassword(u.id)}
+                      className="text-xs text-[var(--signal-ink)] font-medium"
+                    >
+                      Salvar
+                    </button>
+                    <button
+                      onClick={() => {
+                        setResetOpenId(null);
+                        setResetMsg("");
+                      }}
+                      className="text-xs text-[var(--ink-faint)]"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setResetOpenId(u.id);
+                      setNewPassword("");
+                      setResetMsg("");
+                    }}
+                    className="btn-ghost text-xs"
+                  >
+                    Redefinir
+                  </button>
+                )}
+                {resetOpenId === u.id && resetMsg && (
+                  <p className="text-xs text-[var(--ink-faint)] mt-1">{resetMsg}</p>
+                )}
               </td>
             </tr>
           ))}
