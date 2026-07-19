@@ -49,6 +49,15 @@ export default async function AccountAutomationsPage({
         </h1>
       </div>
 
+      <div className="flex items-center gap-4 mb-6 text-sm">
+        <Link href={`/dashboard/accounts/${accountId}/contatos`} className="text-[var(--ink-soft)] underline">
+          Contatos
+        </Link>
+        <Link href={`/dashboard/accounts/${accountId}/atividade`} className="text-[var(--ink-soft)] underline">
+          Atividade
+        </Link>
+      </div>
+
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-medium text-[var(--ink-soft)] uppercase tracking-wide">
           Automações
