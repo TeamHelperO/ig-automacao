@@ -21,6 +21,17 @@ export default function UsersTable({
 }) {
   const [users, setUsers] = useState(initialUsers);
 
+  async function toggleAdmin(userId: string, isAdmin: boolean) {
+    setUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, is_super_admin: isAdmin } : u))
+    );
+    await fetch(`/api/admin/users/${userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_super_admin: isAdmin }),
+    });
+  }
+
   async function changePlan(userId: string, planId: string) {
     setUsers((prev) =>
       prev.map((u) =>
@@ -44,19 +55,13 @@ export default function UsersTable({
             <th className="px-4 py-3">Email</th>
             <th className="px-4 py-3">Plano</th>
             <th className="px-4 py-3">Contas</th>
+            <th className="px-4 py-3">Admin</th>
           </tr>
         </thead>
         <tbody>
           {users.map((u) => (
             <tr key={u.id} className="border-t border-[var(--border)]">
-              <td className="px-4 py-3">
-                {u.email}
-                {u.is_super_admin && (
-                  <span className="ml-2 text-xs bg-[var(--indigo)] text-white px-2 py-0.5 rounded-full">
-                    admin
-                  </span>
-                )}
-              </td>
+              <td className="px-4 py-3">{u.email}</td>
               <td className="px-4 py-3">
                 <select
                   value={u.plan_id ?? ""}
@@ -72,6 +77,14 @@ export default function UsersTable({
               </td>
               <td className="px-4 py-3 text-[var(--ink-faint)]">
                 {u.accounts_count}/{u.plans?.max_ig_accounts ?? "—"}
+              </td>
+              <td className="px-4 py-3">
+                <button
+                  onClick={() => toggleAdmin(u.id, !u.is_super_admin)}
+                  className={`pill ${u.is_super_admin ? "pill-amber" : "pill-neutral"}`}
+                >
+                  {u.is_super_admin ? "Remover" : "Tornar admin"}
+                </button>
               </td>
             </tr>
           ))}

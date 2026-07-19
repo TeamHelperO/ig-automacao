@@ -21,6 +21,9 @@ export default async function DashboardLayout({
             </span>
           </Link>
           <nav className="flex items-center gap-5 text-sm">
+            <Link href="/dashboard/conta" className="text-white/70 hover:text-white">
+              Minha conta
+            </Link>
             <Link href="/dashboard/planos" className="text-white/70 hover:text-white">
               Planos
             </Link>
