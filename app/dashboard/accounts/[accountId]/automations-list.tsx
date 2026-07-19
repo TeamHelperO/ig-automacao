@@ -73,6 +73,12 @@ export default function AutomationsList({
               <span className="pill-dot" /> {a.active ? "Ativa" : "Pausada"}
             </button>
             <Link
+              href={`/dashboard/accounts/${accountId}/automations/${a.id}/sequencia`}
+              className="btn-ghost text-xs"
+            >
+              Sequência
+            </Link>
+            <Link
               href={`/dashboard/accounts/${accountId}/automations/${a.id}/editar`}
               className="btn-ghost text-xs"
             >

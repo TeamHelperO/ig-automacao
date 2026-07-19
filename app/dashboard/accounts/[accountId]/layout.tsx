@@ -1,5 +1,5 @@
-import { supabaseAdmin } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/supabase-server-auth";
+import { ensureAccountAccess } from "@/lib/ownership";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import AccountSubnav from "./account-subnav";
@@ -15,12 +15,7 @@ export default async function AccountLayout({
   const current = await getCurrentUser();
   if (!current) return null;
 
-  const { data: account } = await supabaseAdmin
-    .from("accounts")
-    .select("*")
-    .eq("id", accountId)
-    .eq("user_id", current.authUser.id)
-    .maybeSingle();
+  const account = await ensureAccountAccess(accountId, current.authUser.id);
 
   if (!account) redirect("/dashboard");
 

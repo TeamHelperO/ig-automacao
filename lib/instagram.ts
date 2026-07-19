@@ -119,7 +119,7 @@ export async function subscribeWebhookFields(params: {
   const url = new URL(
     `${GRAPH_BASE}/${params.igUserId}/subscribed_apps`
   );
-  url.searchParams.set("subscribed_fields", "comments,messages");
+  url.searchParams.set("subscribed_fields", "comments,messages,mentions");
   url.searchParams.set("access_token", params.accessToken);
 
   const res = await fetch(url.toString(), { method: "POST" });

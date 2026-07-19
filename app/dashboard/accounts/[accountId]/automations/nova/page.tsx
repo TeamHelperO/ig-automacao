@@ -24,6 +24,7 @@ export default function NovaAutomacaoPage() {
     trigger_comment: true,
     trigger_story_reply: false,
     trigger_dm: false,
+    trigger_mention: false,
     keywords: "",
     match_type: "contains",
     target_media_id: "",
@@ -110,7 +111,21 @@ export default function NovaAutomacaoPage() {
               />
               DM direta
             </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={form.trigger_mention}
+                onChange={(e) => update("trigger_mention", e.target.checked)}
+              />
+              Menção em story/post
+            </label>
           </div>
+          {form.trigger_mention && (
+            <p className="text-xs text-[var(--ink-faint)] mt-2">
+              Por enquanto isso só registra a menção na aba Atividade — a API do
+              Instagram ainda não permite responder automaticamente com DM.
+            </p>
+          )}
         </Field>
 
         <Field label="Palavras-chave (separadas por vírgula)">

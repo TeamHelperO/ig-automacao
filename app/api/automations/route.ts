@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/supabase-server-auth";
-import { ensureAccountOwnership } from "@/lib/ownership";
+import { ensureAccountAccess } from "@/lib/ownership";
 
 export async function GET(req: NextRequest) {
   const current = await getCurrentUser();
@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const accountId = req.nextUrl.searchParams.get("account_id");
   if (!accountId) return NextResponse.json({ error: "account_id obrigatório" }, { status: 400 });
 
-  const account = await ensureAccountOwnership(accountId, current.authUser.id);
+  const account = await ensureAccountAccess(accountId, current.authUser.id);
   if (!account) return NextResponse.json({ error: "conta não encontrada" }, { status: 404 });
 
   const { data, error } = await supabaseAdmin
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "account_id obrigatório" }, { status: 400 });
   }
 
-  const account = await ensureAccountOwnership(body.account_id, current.authUser.id);
+  const account = await ensureAccountAccess(body.account_id, current.authUser.id);
   if (!account) return NextResponse.json({ error: "conta não encontrada" }, { status: 404 });
 
   const { data, error } = await supabaseAdmin
@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
       trigger_comment: body.trigger_comment ?? true,
       trigger_story_reply: body.trigger_story_reply ?? false,
       trigger_dm: body.trigger_dm ?? false,
+      trigger_mention: body.trigger_mention ?? false,
       keywords: body.keywords ?? [],
       match_type: body.match_type ?? "contains",
       target_media_id: body.target_media_id ?? null,

@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { verifyMetaSignature } from "@/lib/verify-signature";
 import { supabaseAdmin } from "@/lib/supabase";
 import { enqueue, drainQueue } from "@/lib/queue";
+import { createTrackedLink, trackedLinkUrl } from "@/lib/shortlink";
 
 // ---------------------------------------------------------
 // GET: handshake de verificação do webhook
@@ -67,6 +68,9 @@ async function processWebhookBody(body: any) {
     for (const change of entry.changes ?? []) {
       if (change.field === "comments") {
         await handleComment(account, change.value);
+      }
+      if (change.field === "mentions") {
+        await handleMention(account, change.value);
       }
     }
     for (const messaging of entry.messaging ?? []) {
@@ -180,6 +184,24 @@ async function handleComment(account: any, value: any) {
   }
 }
 
+// Menção: alguém marcou sua conta num story ou post. A Meta só manda o
+// media_id/comment_id do evento — não dá pra descobrir com segurança
+// quem foi (nem mandar DM automática) sem uma permissão extra que ainda
+// não pedimos na análise do app. Por enquanto, registramos o evento pra
+// aparecer na aba Atividade, e o dono decide se quer agir manualmente.
+async function handleMention(account: any, value: any) {
+  const automations = await getActiveAutomations(account.id);
+  const hasMentionAutomation = automations.some((a: any) => a.trigger_mention);
+
+  await logEvent(
+    account.id,
+    "mention",
+    hasMentionAutomation
+      ? { ...value, note: "automação de menção ativa, mas resposta automática ainda não é suportada" }
+      : value
+  );
+}
+
 async function handleMessaging(account: any, messaging: any) {
   const senderId: string | undefined = messaging?.sender?.id;
   const message = messaging?.message;
@@ -258,6 +280,13 @@ async function scheduleFollowups(account: any, contact: any, payload: string) {
   const windowExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
   if (automation.link_url) {
+    const code = await createTrackedLink({
+      accountId: account.id,
+      automationId: automation.id,
+      contactId: contact.id,
+      destinationUrl: automation.link_url,
+    });
+
     await enqueue({
       accountId: account.id,
       contactId: contact.id,
@@ -268,7 +297,7 @@ async function scheduleFollowups(account: any, contact: any, payload: string) {
         buttonUrl: {
           text: automation.link_text ?? "Aqui está o link 👇",
           buttonLabel: automation.link_button_label ?? "Acessar",
-          url: automation.link_url,
+          url: trackedLinkUrl(code),
         },
       },
       windowExpiresAt,
@@ -284,6 +313,44 @@ async function scheduleFollowups(account: any, contact: any, payload: string) {
       kind: "reminder",
       recipient: { id: contact.ig_scoped_id },
       payload: { text: automation.reminder_text },
+      sendAfter: new Date(Date.now() + delayMs),
+      windowExpiresAt: new Date(Date.now() + delayMs + 24 * 60 * 60 * 1000),
+    });
+  }
+
+  // sequência de passos extras, configurada em /sequencia (além do
+  // link + lembrete simples acima, que continuam funcionando sozinhos)
+  const { data: steps } = await supabaseAdmin
+    .from("followups")
+    .select("*")
+    .eq("automation_id", automation.id)
+    .order("step_order", { ascending: true });
+
+  for (const step of steps ?? []) {
+    const delayMs = (step.delay_minutes ?? 0) * 60 * 1000;
+    let buttonUrl: { text: string; buttonLabel: string; url: string } | undefined;
+
+    if (step.link_url) {
+      const code = await createTrackedLink({
+        accountId: account.id,
+        automationId: automation.id,
+        contactId: contact.id,
+        destinationUrl: step.link_url,
+      });
+      buttonUrl = {
+        text: step.message_text ?? "Aqui está 👇",
+        buttonLabel: step.link_button_label ?? "Acessar",
+        url: trackedLinkUrl(code),
+      };
+    }
+
+    await enqueue({
+      accountId: account.id,
+      contactId: contact.id,
+      automationId: automation.id,
+      kind: "reminder",
+      recipient: { id: contact.ig_scoped_id },
+      payload: buttonUrl ? { buttonUrl } : { text: step.message_text ?? "" },
       sendAfter: new Date(Date.now() + delayMs),
       windowExpiresAt: new Date(Date.now() + delayMs + 24 * 60 * 60 * 1000),
     });

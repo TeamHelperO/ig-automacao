@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
 import { listMedia } from "@/lib/instagram";
 import { getCurrentUser } from "@/lib/supabase-server-auth";
+import { ensureAccountAccess } from "@/lib/ownership";
 
 export async function GET(req: NextRequest) {
   const current = await getCurrentUser();
@@ -10,12 +10,7 @@ export async function GET(req: NextRequest) {
   const accountId = req.nextUrl.searchParams.get("account_id");
   if (!accountId) return NextResponse.json({ error: "account_id obrigatório" }, { status: 400 });
 
-  const { data: account } = await supabaseAdmin
-    .from("accounts")
-    .select("*")
-    .eq("id", accountId)
-    .eq("user_id", current.authUser.id)
-    .maybeSingle();
+  const account = await ensureAccountAccess(accountId, current.authUser.id);
 
   if (!account?.access_token || !account.ig_user_id) {
     return NextResponse.json({ error: "conta não encontrada ou não conectada" }, { status: 404 });

@@ -14,15 +14,24 @@ export default async function DashboardPage({
   const current = await getCurrentUser();
   if (!current) return null;
 
-  const { data: accounts } = await supabaseAdmin
+  const { data: ownedAccounts } = await supabaseAdmin
     .from("accounts")
     .select("*")
     .eq("user_id", current.authUser.id)
     .order("connected_at", { ascending: false });
 
+  const { data: collabRows } = await supabaseAdmin
+    .from("account_collaborators")
+    .select("accounts(*)")
+    .eq("user_id", current.authUser.id);
+
+  const collabAccounts = (collabRows ?? [])
+    .map((r: any) => r.accounts)
+    .filter(Boolean);
+
   const plan = current.profile?.plans;
   const maxAccounts = plan?.max_ig_accounts ?? 1;
-  const usedAccounts = accounts?.length ?? 0;
+  const usedAccounts = ownedAccounts?.length ?? 0;
   const atLimit = usedAccounts >= maxAccounts;
 
   return (
@@ -65,7 +74,7 @@ export default async function DashboardPage({
         )}
       </div>
 
-      {!accounts || accounts.length === 0 ? (
+      {(!ownedAccounts || ownedAccounts.length === 0) && collabAccounts.length === 0 ? (
         <div className="card p-10 text-center">
           <p className="text-sm text-[var(--ink-soft)]">
             Nenhuma conta conectada ainda. Conecte a primeira pra criar automações.
@@ -73,7 +82,7 @@ export default async function DashboardPage({
         </div>
       ) : (
         <ul className="space-y-3">
-          {accounts.map((account) => (
+          {(ownedAccounts ?? []).map((account) => (
             <li key={account.id} className="card p-4 flex items-center justify-between">
               <Link
                 href={`/dashboard/accounts/${account.id}`}
@@ -104,6 +113,32 @@ export default async function DashboardPage({
                 </div>
               </Link>
               <DisconnectButton accountId={account.id} />
+            </li>
+          ))}
+
+          {collabAccounts.map((account: any) => (
+            <li key={account.id} className="card p-4 flex items-center justify-between">
+              <Link
+                href={`/dashboard/accounts/${account.id}`}
+                className="flex items-center gap-4 flex-1 min-w-0"
+              >
+                {account.ig_profile_picture_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={account.ig_profile_picture_url}
+                    alt=""
+                    className="w-11 h-11 rounded-full object-cover shrink-0"
+                  />
+                ) : (
+                  <div className="w-11 h-11 rounded-full bg-[var(--paper)] border border-[var(--border)] shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <p className="font-medium text-[var(--ink)] truncate">
+                    @{account.ig_username}
+                  </p>
+                  <p className="text-xs text-[var(--ink-faint)]">você é colaborador</p>
+                </div>
+              </Link>
             </li>
           ))}
         </ul>

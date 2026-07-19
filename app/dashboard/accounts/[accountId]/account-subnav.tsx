@@ -11,6 +11,7 @@ export default function AccountSubnav({ accountId }: { accountId: string }) {
     { href: base, label: "Automações", match: (p: string) => p === base || p.includes("/automations") },
     { href: `${base}/contatos`, label: "Contatos", match: (p: string) => p.includes("/contatos") },
     { href: `${base}/atividade`, label: "Atividade", match: (p: string) => p.includes("/atividade") },
+    { href: `${base}/equipe`, label: "Equipe", match: (p: string) => p.includes("/equipe") },
   ];
 
   return (
