@@ -40,48 +40,45 @@ export default function AutomationsList({
   function triggersLabel(a: Automation) {
     const list = [];
     if (a.trigger_comment) list.push("comentário");
-    if (a.trigger_story_reply) list.push("resposta a story");
+    if (a.trigger_story_reply) list.push("story");
     if (a.trigger_dm) list.push("dm");
-    return list.join(" + ") || "nenhum gatilho";
+    return list.join(" · ") || "sem gatilho";
   }
 
   if (automations.length === 0) {
     return (
-      <p className="text-sm text-neutral-500 bg-white border border-neutral-200 rounded-xl p-6 text-center">
-        Nenhuma automação criada ainda.
-      </p>
+      <div className="card p-10 text-center">
+        <p className="text-sm text-[var(--ink-soft)]">
+          Nenhuma automação criada ainda. Crie a primeira pra essa conta.
+        </p>
+      </div>
     );
   }
 
   return (
     <ul className="space-y-3">
       {automations.map((a) => (
-        <li
-          key={a.id}
-          className="bg-white border border-neutral-200 rounded-xl p-4 flex items-center justify-between"
-        >
-          <div>
-            <p className="font-medium text-neutral-900">{a.name}</p>
-            <p className="text-xs text-neutral-500 mt-0.5">
-              {triggersLabel(a)} · palavras: {a.keywords.join(", ") || "—"}
+        <li key={a.id} className="card p-4 flex items-center justify-between">
+          <div className="min-w-0">
+            <p className="font-medium text-[var(--ink)] truncate">{a.name}</p>
+            <p className="text-xs text-[var(--ink-faint)] mt-0.5 mono">
+              {triggersLabel(a)} · {a.keywords.join(", ") || "sem palavra-chave"}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => toggleActive(a.id, !a.active)}
-              className={`text-xs px-3 py-1.5 rounded-full font-medium ${
-                a.active ? "bg-green-100 text-green-800" : "bg-neutral-100 text-neutral-500"
-              }`}
+              className={`pill ${a.active ? "pill-signal" : "pill-neutral"} mr-2`}
             >
-              {a.active ? "Ativa" : "Pausada"}
+              <span className="pill-dot" /> {a.active ? "Ativa" : "Pausada"}
             </button>
             <Link
               href={`/dashboard/accounts/${accountId}/automations/${a.id}/editar`}
-              className="text-xs text-neutral-600"
+              className="btn-ghost text-xs"
             >
               Editar
             </Link>
-            <button onClick={() => remove(a.id)} className="text-xs text-red-600">
+            <button onClick={() => remove(a.id)} className="btn-danger-text text-xs">
               Excluir
             </button>
           </div>

@@ -32,28 +32,30 @@ export default async function AccountAutomationsPage({
 
   return (
     <main className="max-w-3xl mx-auto px-6 py-10">
-      <Link href="/dashboard" className="text-sm text-neutral-500">
+      <Link href="/dashboard" className="text-sm text-[var(--ink-faint)]">
         ← Todas as contas
       </Link>
-      <div className="flex items-center gap-3 mt-2 mb-8">
+      <div className="flex items-center gap-3 mt-3 mb-8">
         {account.ig_profile_picture_url && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={account.ig_profile_picture_url}
             alt=""
-            className="w-10 h-10 rounded-full object-cover"
+            className="w-11 h-11 rounded-full object-cover"
           />
         )}
-        <h1 className="text-xl font-semibold text-neutral-900">
+        <h1 className="font-display text-2xl font-medium text-[var(--ink)]">
           @{account.ig_username}
         </h1>
       </div>
 
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-medium text-neutral-900">Automações</h2>
+        <h2 className="text-sm font-medium text-[var(--ink-soft)] uppercase tracking-wide">
+          Automações
+        </h2>
         <Link
           href={`/dashboard/accounts/${accountId}/automations/nova`}
-          className="text-sm bg-neutral-900 text-white rounded-lg px-4 py-2 font-medium"
+          className="btn btn-primary"
         >
           + Nova automação
         </Link>

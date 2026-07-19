@@ -46,11 +46,11 @@ export default function PlansManager({ initialPlans }: { initialPlans: Plan[] })
         {plans.map((p) => (
           <li
             key={p.id}
-            className="bg-white border border-neutral-200 rounded-xl p-4 flex items-center justify-between"
+            className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex items-center justify-between"
           >
             <div>
-              <p className="font-medium text-neutral-900">{p.name}</p>
-              <p className="text-xs text-neutral-500">
+              <p className="font-medium text-[var(--ink)]">{p.name}</p>
+              <p className="text-xs text-[var(--ink-faint)]">
                 R$ {(p.price_cents / 100).toFixed(2)} · {p.max_ig_accounts} contas de
                 Instagram
               </p>
@@ -58,7 +58,7 @@ export default function PlansManager({ initialPlans }: { initialPlans: Plan[] })
             <button
               onClick={() => toggleActive(p.id, !p.active)}
               className={`text-xs px-3 py-1.5 rounded-full font-medium ${
-                p.active ? "bg-green-100 text-green-800" : "bg-neutral-100 text-neutral-500"
+                p.active ? "pill-signal" : "bg-neutral-100 text-[var(--ink-faint)]"
               }`}
             >
               {p.active ? "Ativo" : "Inativo"}
@@ -69,9 +69,9 @@ export default function PlansManager({ initialPlans }: { initialPlans: Plan[] })
 
       <form
         onSubmit={createPlan}
-        className="bg-white border border-neutral-200 rounded-xl p-4 space-y-3"
+        className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 space-y-3"
       >
-        <p className="text-sm font-medium text-neutral-900">Novo plano</p>
+        <p className="text-sm font-medium text-[var(--ink)]">Novo plano</p>
         <input
           required
           placeholder="Nome (ex: Pro)"
@@ -104,7 +104,7 @@ export default function PlansManager({ initialPlans }: { initialPlans: Plan[] })
         <button
           type="submit"
           disabled={saving}
-          className="w-full bg-neutral-900 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
+          className="w-full bg-[var(--indigo)] text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
         >
           {saving ? "Criando..." : "Criar plano"}
         </button>

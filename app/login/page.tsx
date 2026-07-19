@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { AuthShell } from "@/components/auth-shell";
 
 function LoginForm() {
   const router = useRouter();
@@ -32,40 +33,41 @@ function LoginForm() {
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="bg-white shadow-sm border border-neutral-200 rounded-xl p-8 w-full max-w-sm"
-    >
-      <h1 className="text-lg font-semibold text-neutral-900 mb-1">Entrar</h1>
-      <p className="text-sm text-neutral-500 mb-6">
-        Acesse seu painel de automação.
-      </p>
-      <input
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="Email"
-        className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-neutral-900"
-        autoFocus
-      />
-      <input
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="Senha"
-        className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-neutral-900"
-      />
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full bg-neutral-900 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
-      >
+    <form onSubmit={handleSubmit}>
+      <h2 className="font-display text-2xl font-medium text-[var(--ink)] mb-1">Entrar</h2>
+      <p className="text-sm text-[var(--ink-soft)] mb-7">Acesse seu painel de automação.</p>
+
+      <label className="block mb-3">
+        <span className="block text-xs font-medium text-[var(--ink-soft)] mb-1.5">Email</span>
+        <input
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="input"
+          autoFocus
+        />
+      </label>
+      <label className="block mb-4">
+        <span className="block text-xs font-medium text-[var(--ink-soft)] mb-1.5">Senha</span>
+        <input
+          type="password"
+          required
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="input"
+        />
+      </label>
+
+      {error && <p className="text-sm text-[var(--coral)] mb-4">{error}</p>}
+
+      <button type="submit" disabled={loading} className="btn btn-primary w-full py-2.5 mb-5">
         {loading ? "Entrando..." : "Entrar"}
       </button>
-      <p className="text-xs text-neutral-500 mt-4 text-center">
+
+      <p className="text-xs text-[var(--ink-faint)] text-center">
         Não tem conta?{" "}
-        <Link href="/signup" className="text-neutral-900 font-medium">
+        <Link href="/signup" className="text-[var(--ink)] font-medium">
           Cadastre-se
         </Link>
       </p>
@@ -75,10 +77,10 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-neutral-50 px-4">
+    <AuthShell eyebrow="acesso" title="Cada conta, uma conversa acontecendo agora.">
       <Suspense fallback={null}>
         <LoginForm />
       </Suspense>
-    </div>
+    </AuthShell>
   );
 }

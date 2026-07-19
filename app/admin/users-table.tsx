@@ -37,9 +37,9 @@ export default function UsersTable({
   }
 
   return (
-    <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
       <table className="w-full text-sm">
-        <thead className="bg-neutral-50 text-left text-xs text-neutral-500">
+        <thead className="bg-[var(--paper)] text-left text-xs text-[var(--ink-faint)]">
           <tr>
             <th className="px-4 py-3">Email</th>
             <th className="px-4 py-3">Plano</th>
@@ -48,11 +48,11 @@ export default function UsersTable({
         </thead>
         <tbody>
           {users.map((u) => (
-            <tr key={u.id} className="border-t border-neutral-100">
+            <tr key={u.id} className="border-t border-[var(--border)]">
               <td className="px-4 py-3">
                 {u.email}
                 {u.is_super_admin && (
-                  <span className="ml-2 text-xs bg-neutral-900 text-white px-2 py-0.5 rounded-full">
+                  <span className="ml-2 text-xs bg-[var(--indigo)] text-white px-2 py-0.5 rounded-full">
                     admin
                   </span>
                 )}
@@ -61,7 +61,7 @@ export default function UsersTable({
                 <select
                   value={u.plan_id ?? ""}
                   onChange={(e) => changePlan(u.id, e.target.value)}
-                  className="border border-neutral-300 rounded-md px-2 py-1 text-sm"
+                  className="border border-[var(--border-strong)] rounded-md px-2 py-1 text-sm"
                 >
                   {plans.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -70,7 +70,7 @@ export default function UsersTable({
                   ))}
                 </select>
               </td>
-              <td className="px-4 py-3 text-neutral-500">
+              <td className="px-4 py-3 text-[var(--ink-faint)]">
                 {u.accounts_count}/{u.plans?.max_ig_accounts ?? "—"}
               </td>
             </tr>

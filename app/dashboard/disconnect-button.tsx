@@ -16,11 +16,7 @@ export default function DisconnectButton({ accountId }: { accountId: string }) {
   }
 
   return (
-    <button
-      onClick={handleDisconnect}
-      disabled={loading}
-      className="text-xs text-red-600 ml-3"
-    >
+    <button onClick={handleDisconnect} disabled={loading} className="btn-danger-text text-xs">
       {loading ? "..." : "Desconectar"}
     </button>
   );

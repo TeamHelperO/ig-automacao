@@ -12,10 +12,10 @@ export default async function AdminPlanosPage() {
 
   return (
     <main className="max-w-2xl mx-auto px-6 py-10">
-      <Link href="/admin" className="text-sm text-neutral-500">
+      <Link href="/admin" className="text-sm text-[var(--ink-faint)]">
         ← Usuários
       </Link>
-      <h1 className="text-2xl font-semibold text-neutral-900 mt-2 mb-8">
+      <h1 className="text-2xl font-semibold text-[var(--ink)] mt-2 mb-8">
         Planos
       </h1>
       <PlansManager initialPlans={plans ?? []} />

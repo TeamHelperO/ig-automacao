@@ -29,8 +29,8 @@ export default async function AdminPage() {
   return (
     <main className="max-w-4xl mx-auto px-6 py-10">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-semibold text-neutral-900">Super Admin</h1>
-        <Link href="/admin/planos" className="text-sm text-neutral-500 underline">
+        <h1 className="font-display text-2xl font-medium text-[var(--ink)]">Usuários</h1>
+        <Link href="/admin/planos" className="text-sm text-[var(--ink-faint)] underline">
           Gerenciar planos
         </Link>
       </div>

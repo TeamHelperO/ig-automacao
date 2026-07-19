@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { AuthShell } from "@/components/auth-shell";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -28,8 +29,6 @@ export default function SignupPage() {
       return;
     }
 
-    // Se a confirmação por email estiver desativada no projeto,
-    // já vem uma sessão pronta e dá pra ir direto pro painel.
     if (data.session) {
       router.push("/dashboard");
       router.refresh();
@@ -38,65 +37,66 @@ export default function SignupPage() {
     }
   }
 
-  if (done) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-neutral-50 px-4">
-        <div className="bg-white shadow-sm border border-neutral-200 rounded-xl p-8 w-full max-w-sm text-center">
-          <h1 className="text-lg font-semibold text-neutral-900 mb-2">
+  return (
+    <AuthShell eyebrow="cadastro" title="Comece grátis com 1 conta de Instagram.">
+      {done ? (
+        <div>
+          <h2 className="font-display text-2xl font-medium text-[var(--ink)] mb-2">
             Confirme seu email
-          </h1>
-          <p className="text-sm text-neutral-500">
-            Mandamos um link de confirmação pra {email}. Depois de confirmar,
-            é só entrar normalmente.
+          </h2>
+          <p className="text-sm text-[var(--ink-soft)]">
+            Mandamos um link de confirmação pra <strong>{email}</strong>. Depois
+            de confirmar, é só entrar normalmente.
           </p>
         </div>
-      </div>
-    );
-  }
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <h2 className="font-display text-2xl font-medium text-[var(--ink)] mb-1">
+            Criar conta
+          </h2>
+          <p className="text-sm text-[var(--ink-soft)] mb-7">
+            Sem cartão de crédito pra começar.
+          </p>
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-neutral-50 px-4">
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white shadow-sm border border-neutral-200 rounded-xl p-8 w-full max-w-sm"
-      >
-        <h1 className="text-lg font-semibold text-neutral-900 mb-1">
-          Criar conta
-        </h1>
-        <p className="text-sm text-neutral-500 mb-6">
-          Comece grátis, com 1 conta de Instagram.
-        </p>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-neutral-900"
-          autoFocus
-        />
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Senha (mínimo 6 caracteres)"
-          minLength={6}
-          className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-neutral-900"
-        />
-        {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-neutral-900 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
-        >
-          {loading ? "Criando..." : "Criar conta"}
-        </button>
-        <p className="text-xs text-neutral-500 mt-4 text-center">
-          Já tem conta?{" "}
-          <Link href="/login" className="text-neutral-900 font-medium">
-            Entrar
-          </Link>
-        </p>
-      </form>
-    </div>
+          <label className="block mb-3">
+            <span className="block text-xs font-medium text-[var(--ink-soft)] mb-1.5">Email</span>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="input"
+              autoFocus
+            />
+          </label>
+          <label className="block mb-4">
+            <span className="block text-xs font-medium text-[var(--ink-soft)] mb-1.5">
+              Senha (mínimo 6 caracteres)
+            </span>
+            <input
+              type="password"
+              required
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="input"
+            />
+          </label>
+
+          {error && <p className="text-sm text-[var(--coral)] mb-4">{error}</p>}
+
+          <button type="submit" disabled={loading} className="btn btn-primary w-full py-2.5 mb-5">
+            {loading ? "Criando..." : "Criar conta"}
+          </button>
+
+          <p className="text-xs text-[var(--ink-faint)] text-center">
+            Já tem conta?{" "}
+            <Link href="/login" className="text-[var(--ink)] font-medium">
+              Entrar
+            </Link>
+          </p>
+        </form>
+      )}
+    </AuthShell>
   );
 }
