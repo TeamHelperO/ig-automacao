@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 type Automation = {
   id: string;
@@ -76,6 +77,12 @@ export default function AutomationsList({
             >
               {a.active ? "Ativa" : "Pausada"}
             </button>
+            <Link
+              href={`/dashboard/automations/${a.id}/editar`}
+              className="text-xs text-neutral-600"
+            >
+              Editar
+            </Link>
             <button
               onClick={() => remove(a.id)}
               className="text-xs text-red-600"
