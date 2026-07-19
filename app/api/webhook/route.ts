@@ -5,8 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import { enqueue, drainQueue } from "@/lib/queue";
 
 // ---------------------------------------------------------
-// GET: handshake de verificação do webhook (a Meta chama isso
-// uma vez quando você salva a URL de callback no painel).
+// GET: handshake de verificação do webhook
 // ---------------------------------------------------------
 export async function GET(req: NextRequest) {
   const mode = req.nextUrl.searchParams.get("hub.mode");
@@ -20,7 +19,9 @@ export async function GET(req: NextRequest) {
 }
 
 // ---------------------------------------------------------
-// POST: eventos reais (comments, messages)
+// POST: eventos reais (comments, messages), de QUALQUER conta
+// conectada por QUALQUER cliente — a Meta manda tudo pro mesmo
+// app, então cada entry.id nos diz de qual conta é o evento.
 // ---------------------------------------------------------
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
@@ -33,17 +34,12 @@ export async function POST(req: NextRequest) {
 
   const body = JSON.parse(rawBody);
 
-  // Responde rápido (a Meta espera 200 em poucos segundos) e processa
-  // o resto depois, no mesmo request, via after().
   after(async () => {
     try {
       await processWebhookBody(body);
     } catch (err) {
       console.error("Erro processando webhook:", err);
     } finally {
-      // dispara a drenagem da fila pra parecer instantâneo; a trava
-      // atômica em drainQueue() garante que não haverá envio em dobro
-      // mesmo que o pg_cron rode quase ao mesmo tempo.
       try {
         await drainQueue();
       } catch (err) {
@@ -55,48 +51,49 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-// ---------------------------------------------------------
-// Lógica de negócio
-// ---------------------------------------------------------
-
 async function processWebhookBody(body: any) {
   for (const entry of body.entry ?? []) {
-    // Comentários chegam em entry.changes com field 'comments'
+    const igUserId: string | undefined = entry.id;
+    if (!igUserId) continue;
+
+    const { data: account } = await supabaseAdmin
+      .from("accounts")
+      .select("*")
+      .eq("ig_user_id", igUserId)
+      .maybeSingle();
+
+    if (!account) continue; // evento de uma conta que não está mais conectada
+
     for (const change of entry.changes ?? []) {
       if (change.field === "comments") {
-        await handleComment(change.value);
+        await handleComment(account, change.value);
       }
     }
-    // Mensagens (DM normal, resposta a story, resposta ao botão
-    // de resposta rápida) chegam em entry.messaging
     for (const messaging of entry.messaging ?? []) {
-      await handleMessaging(messaging);
+      await handleMessaging(account, messaging);
     }
   }
 }
 
-async function logEvent(eventType: string, raw: unknown, note?: string) {
+async function logEvent(accountId: string, eventType: string, raw: unknown) {
   await supabaseAdmin.from("events").insert({
+    account_id: accountId,
     event_type: eventType,
     raw: raw as any,
-    note,
   });
 }
 
-async function getActiveAutomations() {
+async function getActiveAutomations(accountId: string) {
   const { data } = await supabaseAdmin
     .from("automations")
     .select("*")
+    .eq("account_id", accountId)
     .eq("active", true);
   return data ?? [];
 }
 
-function matchesKeyword(
-  text: string,
-  keywords: string[],
-  matchType: string
-): boolean {
-  if (matchType === "any") return keywords.length === 0 || true;
+function matchesKeyword(text: string, keywords: string[], matchType: string): boolean {
+  if (matchType === "any") return true;
   const normalized = text.toLowerCase().trim();
   return keywords.some((kw) => {
     const k = kw.toLowerCase().trim();
@@ -104,10 +101,11 @@ function matchesKeyword(
   });
 }
 
-async function upsertContact(igScopedId: string, username?: string) {
+async function upsertContact(accountId: string, igScopedId: string, username?: string) {
   const { data: existing } = await supabaseAdmin
     .from("contacts")
     .select("*")
+    .eq("account_id", accountId)
     .eq("ig_scoped_id", igScopedId)
     .maybeSingle();
 
@@ -115,7 +113,7 @@ async function upsertContact(igScopedId: string, username?: string) {
 
   const { data: created, error } = await supabaseAdmin
     .from("contacts")
-    .insert({ ig_scoped_id: igScopedId, username })
+    .insert({ account_id: accountId, ig_scoped_id: igScopedId, username })
     .select("*")
     .single();
 
@@ -128,9 +126,8 @@ function randomFrom<T>(arr: T[]): T | undefined {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-// --- Comentário em post/reels ---
-async function handleComment(value: any) {
-  await logEvent("comment", value);
+async function handleComment(account: any, value: any) {
+  await logEvent(account.id, "comment", value);
 
   const commentId: string | undefined = value?.id;
   const commentText: string | undefined = value?.text;
@@ -140,20 +137,18 @@ async function handleComment(value: any) {
 
   if (!commentId || !commentText || !fromId) return;
 
-  const automations = await getActiveAutomations();
+  const automations = await getActiveAutomations(account.id);
 
   for (const automation of automations) {
     if (!automation.trigger_comment) continue;
     if (automation.target_media_id && automation.target_media_id !== mediaId) continue;
     if (!matchesKeyword(commentText, automation.keywords, automation.match_type)) continue;
 
-    const contact = await upsertContact(fromId, fromUsername);
-
-    // Resposta privada FURA a janela de 24h: 1x por comentário, válida
-    // por até 7 dias a partir de agora.
+    const contact = await upsertContact(account.id, fromId, fromUsername);
     const windowExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     await enqueue({
+      accountId: account.id,
       contactId: contact.id,
       automationId: automation.id,
       kind: "private_reply",
@@ -162,11 +157,11 @@ async function handleComment(value: any) {
       windowExpiresAt,
     });
 
-    // resposta pública opcional, sorteando entre variações
     if (automation.public_replies?.length) {
       const text = randomFrom(automation.public_replies as string[]);
       if (text) {
         await enqueue({
+          accountId: account.id,
           contactId: contact.id,
           automationId: automation.id,
           kind: "public_reply",
@@ -181,12 +176,11 @@ async function handleComment(value: any) {
       .update({ last_automation_id: automation.id })
       .eq("id", contact.id);
 
-    break; // primeira automação que casar, só ela dispara
+    break;
   }
 }
 
-// --- Mensagem (DM normal, resposta a story, ou resposta ao quick reply) ---
-async function handleMessaging(messaging: any) {
+async function handleMessaging(account: any, messaging: any) {
   const senderId: string | undefined = messaging?.sender?.id;
   const message = messaging?.message;
   if (!senderId || !message) return;
@@ -195,37 +189,30 @@ async function handleMessaging(messaging: any) {
   const quickReplyPayload: string | undefined = message?.quick_reply?.payload;
   const text: string | undefined = message?.text;
 
-  await logEvent(isStoryReply ? "story_reply" : "message", messaging);
+  await logEvent(account.id, isStoryReply ? "story_reply" : "message", messaging);
 
-  const contact = await upsertContact(senderId);
+  const contact = await upsertContact(account.id, senderId);
 
-  // Se veio um payload de quick reply, é a pessoa "tocando no botão":
-  // isso ABRE a janela de 24h e dispara os follow-ups configurados.
   if (quickReplyPayload) {
     await supabaseAdmin
       .from("contacts")
       .update({ last_response_at: new Date().toISOString() })
       .eq("id", contact.id);
 
-    await scheduleFollowups(contact, quickReplyPayload);
+    await scheduleFollowups(account, contact, quickReplyPayload);
     return;
   }
 
-  // Caso contrário, é uma DM comum ou resposta a story: se casar
-  // alguma automação com o gatilho correspondente, manda a DM de
-  // boas-vindas direto (a conversa já está aberta, não precisa de
-  // resposta privada).
   if (!text) return;
 
-  const automations = await getActiveAutomations();
+  const automations = await getActiveAutomations(account.id);
   for (const automation of automations) {
-    const triggerOk = isStoryReply
-      ? automation.trigger_story_reply
-      : automation.trigger_dm;
+    const triggerOk = isStoryReply ? automation.trigger_story_reply : automation.trigger_dm;
     if (!triggerOk) continue;
     if (!matchesKeyword(text, automation.keywords, automation.match_type)) continue;
 
     await enqueue({
+      accountId: account.id,
       contactId: contact.id,
       automationId: automation.id,
       kind: "dm",
@@ -253,7 +240,7 @@ function buildWelcomePayload(automation: any) {
   };
 }
 
-async function scheduleFollowups(contact: any, payload: string) {
+async function scheduleFollowups(account: any, contact: any, payload: string) {
   const automationId = payload.startsWith("automation:")
     ? payload.replace("automation:", "")
     : contact.last_automation_id;
@@ -272,6 +259,7 @@ async function scheduleFollowups(contact: any, payload: string) {
 
   if (automation.link_url) {
     await enqueue({
+      accountId: account.id,
       contactId: contact.id,
       automationId: automation.id,
       kind: "link",
@@ -290,6 +278,7 @@ async function scheduleFollowups(contact: any, payload: string) {
   if (automation.reminder_text) {
     const delayMs = (automation.reminder_delay_minutes ?? 60) * 60 * 1000;
     await enqueue({
+      accountId: account.id,
       contactId: contact.id,
       automationId: automation.id,
       kind: "reminder",
