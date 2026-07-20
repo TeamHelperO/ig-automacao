@@ -191,10 +191,10 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
     if (!ready || initialized.current) return;
     initialized.current = true;
 
-    const ids = ["trigger", "publicReply", "dm", ...steps.map((s) => s.id), "add"];
+    const ids = ["trigger", "publicReply", "dm", ...steps.map((s) => s.id)];
     const initialNodes: Node[] = ids.map((id, i) => ({
       id,
-      type: id === "add" ? "add" : "block",
+      type: "block",
       position: { x: 40, y: i * YSTEP },
       data: {},
     }));
@@ -224,57 +224,27 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
     setSteps((prev) => [...prev, newStep]);
     setAddMenuOpen(false);
 
+    // solta o bloco solto no canvas, sem ligar em nada — conecta na mão
     setNodes((nds) => {
-      const addNode = nds.find((n) => n.id === "add");
-      const pos = addNode ? { ...addNode.position } : { x: 40, y: nds.length * YSTEP };
-      const others = nds.filter((n) => n.id !== "add");
+      const count = nds.length;
+      const col = count % 3;
+      const row = Math.floor(count / 3);
       return [
-        ...others,
-        { id: newStep.id, type: "block", position: pos, data: {} },
-        { id: "add", type: "add", position: { x: pos.x, y: pos.y + YSTEP }, data: {} },
+        ...nds,
+        {
+          id: newStep.id,
+          type: "block",
+          position: { x: 420 + col * 300, y: 40 + row * YSTEP },
+          data: {},
+        },
       ];
-    });
-
-    setEdges((eds) => {
-      // reconecta: quem apontava pro "add" agora aponta pro novo passo, e o novo passo aponta pro "add"
-      const withoutToAdd = eds.filter((e) => e.target !== "add");
-      const incomingToAdd = eds.find((e) => e.target === "add");
-      const newEdges: Edge[] = [...withoutToAdd];
-      if (incomingToAdd) {
-        newEdges.push({
-          id: `${incomingToAdd.source}-${newStep.id}`,
-          source: incomingToAdd.source,
-          target: newStep.id,
-          style: { stroke: "var(--border-strong)", strokeWidth: 2 },
-        });
-      }
-      newEdges.push({
-        id: `${newStep.id}-add`,
-        source: newStep.id,
-        target: "add",
-        style: { stroke: "var(--border-strong)", strokeWidth: 2 },
-      });
-      return newEdges;
     });
   }
 
   function removeStep(id: string) {
     setSteps((prev) => prev.filter((s) => s.id !== id));
     setNodes((nds) => nds.filter((n) => n.id !== id));
-    setEdges((eds) => {
-      const incoming = eds.find((e) => e.target === id);
-      const outgoing = eds.find((e) => e.source === id);
-      const rest = eds.filter((e) => e.source !== id && e.target !== id);
-      if (incoming && outgoing) {
-        rest.push({
-          id: `${incoming.source}-${outgoing.target}`,
-          source: incoming.source,
-          target: outgoing.target,
-          style: { stroke: "var(--border-strong)", strokeWidth: 2 },
-        });
-      }
-      return rest;
-    });
+    setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
     if (editing === id) setEditing(null);
   }
 
@@ -325,7 +295,6 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
         footer: `botão: ${dm.quick_reply_label}`,
         onClick: () => setEditing("dm"),
       },
-      add: { onClick: () => setAddMenuOpen((o) => !o), open: addMenuOpen, addStep },
     };
     steps.forEach((step) => {
       dataById[step.id] = {
@@ -433,6 +402,32 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
         >
           <Background gap={20} color="var(--border)" />
         </ReactFlow>
+
+        <div className="absolute bottom-5 right-5 z-10">
+          {addMenuOpen && (
+            <div className="card p-1.5 w-56 shadow-lg mb-2">
+              <button
+                onClick={() => addStep("text")}
+                className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-[var(--paper)] text-[var(--ink)]"
+              >
+                💌 Mensagem de texto
+              </button>
+              <button
+                onClick={() => addStep("button")}
+                className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-[var(--paper)] text-[var(--ink)]"
+              >
+                🔗 Mensagem com botão
+              </button>
+            </div>
+          )}
+          <button
+            onClick={() => setAddMenuOpen((o) => !o)}
+            className="w-12 h-12 rounded-full bg-[var(--indigo)] text-white flex items-center justify-center text-2xl shadow-lg hover:opacity-90 ml-auto"
+            title="Adicionar bloco"
+          >
+            +
+          </button>
+        </div>
       </div>
 
       {editing === "trigger" && (
@@ -613,38 +608,7 @@ function BlockNode({ data }: { data: any }) {
   );
 }
 
-function AddNode({ data }: { data: any }) {
-  return (
-    <div className="relative flex flex-col items-center">
-      <Handle type="target" position={Position.Top} style={{ width: 10, height: 10, background: "var(--indigo)" }} />
-      <button
-        onClick={data.onClick}
-        className="w-9 h-9 rounded-full bg-[var(--indigo)] text-white flex items-center justify-center text-lg shadow hover:opacity-90"
-      >
-        +
-      </button>
-      {data.open && (
-        <div className="absolute top-11 card p-1.5 w-56 z-10 shadow-lg">
-          <button
-            onClick={() => data.addStep("text")}
-            className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-[var(--paper)] text-[var(--ink)]"
-          >
-            💌 Mensagem de texto
-          </button>
-          <button
-            onClick={() => data.addStep("button")}
-            className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-[var(--paper)] text-[var(--ink)]"
-          >
-            🔗 Mensagem com botão
-          </button>
-        </div>
-      )}
-      <Handle type="source" position={Position.Bottom} style={{ width: 10, height: 10, background: "var(--indigo)" }} />
-    </div>
-  );
-}
-
-const nodeTypes = { block: BlockNode, add: AddNode };
+const nodeTypes = { block: BlockNode };
 
 // ---------------------------------------------------------
 // Modal de edição
