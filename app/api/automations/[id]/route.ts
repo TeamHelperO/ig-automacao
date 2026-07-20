@@ -30,6 +30,8 @@ export async function PATCH(
 
   const body = await req.json();
   delete body.account_id; // não deixa trocar o dono da automação por aqui
+  const steps = body.steps;
+  delete body.steps;
 
   const { data, error } = await supabaseAdmin
     .from("automations")
@@ -39,6 +41,23 @@ export async function PATCH(
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // se veio uma sequência, substitui a antiga inteira pela nova
+  if (Array.isArray(steps)) {
+    await supabaseAdmin.from("followups").delete().eq("automation_id", id);
+    if (steps.length > 0) {
+      const rows = steps.map((step: any, index: number) => ({
+        automation_id: id,
+        step_order: index,
+        delay_minutes: step.delay_minutes ?? 60,
+        message_text: step.message_text ?? null,
+        link_url: step.link_url ?? null,
+        link_button_label: step.link_button_label ?? null,
+      }));
+      await supabaseAdmin.from("followups").insert(rows);
+    }
+  }
+
   return NextResponse.json({ data });
 }
 

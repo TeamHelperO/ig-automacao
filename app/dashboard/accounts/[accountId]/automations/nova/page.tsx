@@ -1,4 +1,4 @@
-import FlowBuilder from "./flow-builder";
+import FlowBuilder from "../flow-builder";
 
 export default function NovaAutomacaoPage() {
   return (
