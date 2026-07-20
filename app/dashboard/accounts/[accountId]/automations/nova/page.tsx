@@ -24,7 +24,6 @@ export default function NovaAutomacaoPage() {
     trigger_comment: true,
     trigger_story_reply: false,
     trigger_dm: false,
-    trigger_mention: false,
     keywords: "",
     match_type: "contains",
     target_media_id: "",
@@ -36,6 +35,8 @@ export default function NovaAutomacaoPage() {
     link_url: "",
     reminder_text: "",
     reminder_delay_minutes: 60,
+    ai_enabled: false,
+    ai_tone: "",
   });
 
   useEffect(() => {
@@ -111,21 +112,7 @@ export default function NovaAutomacaoPage() {
               />
               DM direta
             </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={form.trigger_mention}
-                onChange={(e) => update("trigger_mention", e.target.checked)}
-              />
-              Menção em story/post
-            </label>
           </div>
-          {form.trigger_mention && (
-            <p className="text-xs text-[var(--ink-faint)] mt-2">
-              Por enquanto isso só registra a menção na aba Atividade — a API do
-              Instagram ainda não permite responder automaticamente com DM.
-            </p>
-          )}
         </Field>
 
         <Field label="Palavras-chave (separadas por vírgula)">
@@ -191,7 +178,26 @@ export default function NovaAutomacaoPage() {
           )}
         </Field>
 
-        <Field label="Respostas públicas no comentário (opcional, uma por linha)">
+        <Field label="Respostas com IA">
+          <label className="flex items-center gap-2 text-sm mb-2">
+            <input
+              type="checkbox"
+              checked={form.ai_enabled}
+              onChange={(e) => update("ai_enabled", e.target.checked)}
+            />
+            Gerar respostas variadas com IA, em vez de usar frases fixas
+          </label>
+          {form.ai_enabled && (
+            <input
+              value={form.ai_tone}
+              onChange={(e) => update("ai_tone", e.target.value)}
+              className="input"
+              placeholder="Tom da marca (opcional): ex. descontraído, usa emojis, foca em suplementos naturais"
+            />
+          )}
+        </Field>
+
+        <Field label="Respostas públicas no comentário (opcional, uma por linha — usadas se a IA estiver desligada, ou como reserva)">
           <textarea
             value={form.public_replies}
             onChange={(e) => update("public_replies", e.target.value)}
@@ -201,7 +207,7 @@ export default function NovaAutomacaoPage() {
           />
         </Field>
 
-        <Field label="Mensagem de boas-vindas (DM)">
+        <Field label="Mensagem de boas-vindas (DM) — usada se a IA estiver desligada, ou como reserva">
           <textarea
             required
             value={form.welcome_dm_text}

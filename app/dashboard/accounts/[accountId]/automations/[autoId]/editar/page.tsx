@@ -17,7 +17,6 @@ const emptyForm = {
   trigger_comment: true,
   trigger_story_reply: false,
   trigger_dm: false,
-  trigger_mention: false,
   keywords: "",
   match_type: "contains",
   target_media_id: "",
@@ -29,6 +28,8 @@ const emptyForm = {
   link_url: "",
   reminder_text: "",
   reminder_delay_minutes: 60,
+  ai_enabled: false,
+  ai_tone: "",
 };
 
 export default function EditarAutomacaoPage() {
@@ -51,7 +52,6 @@ export default function EditarAutomacaoPage() {
           trigger_comment: a.trigger_comment ?? true,
           trigger_story_reply: a.trigger_story_reply ?? false,
           trigger_dm: a.trigger_dm ?? false,
-          trigger_mention: a.trigger_mention ?? false,
           keywords: (a.keywords ?? []).join(", "),
           match_type: a.match_type ?? "contains",
           target_media_id: a.target_media_id ?? "",
@@ -63,6 +63,8 @@ export default function EditarAutomacaoPage() {
           link_url: a.link_url ?? "",
           reminder_text: a.reminder_text ?? "",
           reminder_delay_minutes: a.reminder_delay_minutes ?? 60,
+          ai_enabled: a.ai_enabled ?? false,
+          ai_tone: a.ai_tone ?? "",
         });
       })
       .finally(() => setLoading(false));
@@ -128,17 +130,7 @@ export default function EditarAutomacaoPage() {
               <input type="checkbox" checked={form.trigger_dm} onChange={(e) => update("trigger_dm", e.target.checked)} />
               DM direta
             </label>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={form.trigger_mention} onChange={(e) => update("trigger_mention", e.target.checked)} />
-              Menção em story/post
-            </label>
           </div>
-          {form.trigger_mention && (
-            <p className="text-xs text-[var(--ink-faint)] mt-2">
-              Por enquanto isso só registra a menção na aba Atividade — a API do
-              Instagram ainda não permite responder automaticamente com DM.
-            </p>
-          )}
         </Field>
 
         <Field label="Palavras-chave (separadas por vírgula)">
@@ -195,11 +187,30 @@ export default function EditarAutomacaoPage() {
           )}
         </Field>
 
-        <Field label="Respostas públicas no comentário (opcional, uma por linha)">
+        <Field label="Respostas com IA">
+          <label className="flex items-center gap-2 text-sm mb-2">
+            <input
+              type="checkbox"
+              checked={form.ai_enabled}
+              onChange={(e) => update("ai_enabled", e.target.checked)}
+            />
+            Gerar respostas variadas com IA, em vez de usar frases fixas
+          </label>
+          {form.ai_enabled && (
+            <input
+              value={form.ai_tone}
+              onChange={(e) => update("ai_tone", e.target.value)}
+              className="input"
+              placeholder="Tom da marca (opcional): ex. descontraído, usa emojis, foca em suplementos naturais"
+            />
+          )}
+        </Field>
+
+        <Field label="Respostas públicas no comentário (opcional, uma por linha — usadas se a IA estiver desligada, ou como reserva)">
           <textarea value={form.public_replies} onChange={(e) => update("public_replies", e.target.value)} className="input" rows={3} />
         </Field>
 
-        <Field label="Mensagem de boas-vindas (DM)">
+        <Field label="Mensagem de boas-vindas (DM) — usada se a IA estiver desligada, ou como reserva">
           <textarea required value={form.welcome_dm_text} onChange={(e) => update("welcome_dm_text", e.target.value)} className="input" rows={3} />
         </Field>
 

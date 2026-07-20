@@ -4,6 +4,7 @@ import { verifyMetaSignature } from "@/lib/verify-signature";
 import { supabaseAdmin } from "@/lib/supabase";
 import { enqueue, drainQueue } from "@/lib/queue";
 import { createTrackedLink, trackedLinkUrl } from "@/lib/shortlink";
+import { generateAIReply } from "@/lib/ai";
 
 // ---------------------------------------------------------
 // GET: handshake de verificação do webhook
@@ -68,9 +69,6 @@ async function processWebhookBody(body: any) {
     for (const change of entry.changes ?? []) {
       if (change.field === "comments") {
         await handleComment(account, change.value);
-      }
-      if (change.field === "mentions") {
-        await handleMention(account, change.value);
       }
     }
     for (const messaging of entry.messaging ?? []) {
@@ -157,12 +155,21 @@ async function handleComment(account: any, value: any) {
       automationId: automation.id,
       kind: "private_reply",
       recipient: { comment_id: commentId },
-      payload: buildWelcomePayload(automation),
+      payload: await buildWelcomePayload(automation),
       windowExpiresAt,
     });
 
-    if (automation.public_replies?.length) {
-      const text = randomFrom(automation.public_replies as string[]);
+    if (automation.public_replies?.length || automation.ai_enabled) {
+      let text = automation.ai_enabled
+        ? await generateAIReply({
+            kind: "public_comment_reply",
+            commentText,
+            tone: automation.ai_tone ?? undefined,
+          })
+        : null;
+
+      if (!text) text = randomFrom(automation.public_replies as string[]) ?? null;
+
       if (text) {
         await enqueue({
           accountId: account.id,
@@ -182,24 +189,6 @@ async function handleComment(account: any, value: any) {
 
     break;
   }
-}
-
-// Menção: alguém marcou sua conta num story ou post. A Meta só manda o
-// media_id/comment_id do evento — não dá pra descobrir com segurança
-// quem foi (nem mandar DM automática) sem uma permissão extra que ainda
-// não pedimos na análise do app. Por enquanto, registramos o evento pra
-// aparecer na aba Atividade, e o dono decide se quer agir manualmente.
-async function handleMention(account: any, value: any) {
-  const automations = await getActiveAutomations(account.id);
-  const hasMentionAutomation = automations.some((a: any) => a.trigger_mention);
-
-  await logEvent(
-    account.id,
-    "mention",
-    hasMentionAutomation
-      ? { ...value, note: "automação de menção ativa, mas resposta automática ainda não é suportada" }
-      : value
-  );
 }
 
 async function handleMessaging(account: any, messaging: any) {
@@ -239,7 +228,7 @@ async function handleMessaging(account: any, messaging: any) {
       automationId: automation.id,
       kind: "dm",
       recipient: { id: senderId },
-      payload: buildWelcomePayload(automation),
+      payload: await buildWelcomePayload(automation),
     });
 
     await supabaseAdmin
@@ -251,15 +240,18 @@ async function handleMessaging(account: any, messaging: any) {
   }
 }
 
-function buildWelcomePayload(automation: any) {
+async function buildWelcomePayload(automation: any) {
   const quickReplies = automation.quick_reply_label
     ? [{ title: automation.quick_reply_label, payload: `automation:${automation.id}` }]
     : undefined;
 
-  return {
-    text: automation.welcome_dm_text ?? "Oi! Toque no botão abaixo pra continuar 👇",
-    quickReplies,
-  };
+  let text = automation.ai_enabled
+    ? await generateAIReply({ kind: "welcome_dm", tone: automation.ai_tone ?? undefined })
+    : null;
+
+  if (!text) text = automation.welcome_dm_text ?? "Oi! Toque no botão abaixo pra continuar 👇";
+
+  return { text, quickReplies };
 }
 
 async function scheduleFollowups(account: any, contact: any, payload: string) {

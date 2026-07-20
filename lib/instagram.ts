@@ -66,7 +66,10 @@ export async function exchangeForLongLivedToken(params: {
   url.searchParams.set("client_secret", params.appSecret);
   url.searchParams.set("access_token", params.shortToken);
 
-  const res = await fetch(url.toString());
+  // A documentação da Meta diz GET, mas na prática a API vem rejeitando
+  // GET nesse endpoint ("Unsupported request - method type: get").
+  // POST com os mesmos parâmetros na query resolve.
+  const res = await fetch(url.toString(), { method: "POST" });
   if (!res.ok) {
     throw new Error(`Falha ao trocar por token longo: ${await res.text()}`);
   }
@@ -83,7 +86,8 @@ export async function refreshLongLivedToken(accessToken: string) {
   url.searchParams.set("grant_type", "ig_refresh_token");
   url.searchParams.set("access_token", accessToken);
 
-  const res = await fetch(url.toString());
+  // mesmo motivo do comentário acima: POST em vez de GET
+  const res = await fetch(url.toString(), { method: "POST" });
   if (!res.ok) {
     throw new Error(`Falha ao renovar token: ${await res.text()}`);
   }
@@ -119,7 +123,7 @@ export async function subscribeWebhookFields(params: {
   const url = new URL(
     `${GRAPH_BASE}/${params.igUserId}/subscribed_apps`
   );
-  url.searchParams.set("subscribed_fields", "comments,messages,mentions");
+  url.searchParams.set("subscribed_fields", "comments,messages");
   url.searchParams.set("access_token", params.accessToken);
 
   const res = await fetch(url.toString(), { method: "POST" });

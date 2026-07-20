@@ -44,7 +44,6 @@ export async function POST(req: NextRequest) {
       trigger_comment: body.trigger_comment ?? true,
       trigger_story_reply: body.trigger_story_reply ?? false,
       trigger_dm: body.trigger_dm ?? false,
-      trigger_mention: body.trigger_mention ?? false,
       keywords: body.keywords ?? [],
       match_type: body.match_type ?? "contains",
       target_media_id: body.target_media_id ?? null,
@@ -56,6 +55,8 @@ export async function POST(req: NextRequest) {
       link_url: body.link_url ?? null,
       reminder_text: body.reminder_text ?? null,
       reminder_delay_minutes: body.reminder_delay_minutes ?? 60,
+      ai_enabled: body.ai_enabled ?? false,
+      ai_tone: body.ai_tone ?? null,
     })
     .select("*")
     .single();
