@@ -1,14 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ReactFlow,
   Background,
   Handle,
   Position,
+  useNodesState,
+  useEdgesState,
+  addEdge,
   type Node,
   type Edge,
+  type Connection,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
@@ -55,7 +59,7 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-const YSTEP = 150;
+const YSTEP = 160;
 
 export default function FlowBuilder() {
   const router = useRouter();
@@ -98,29 +102,105 @@ export default function FlowBuilder() {
   const [editing, setEditing] = useState<string | null>(null);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
 
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const initialized = useRef(false);
+
   useEffect(() => {
     fetch(`/api/media?account_id=${params.accountId}`)
       .then((r) => r.json())
       .then((json) => setMedia(json.data ?? []));
   }, [params.accountId]);
 
+  // monta o canvas UMA vez com o layout inicial (posição livre depois disso)
+  useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+
+    const ids = ["trigger", "publicReply", "dm", ...steps.map((s) => s.id), "add"];
+    const initialNodes: Node[] = ids.map((id, i) => ({
+      id,
+      type: id === "add" ? "add" : "block",
+      position: { x: 40, y: i * YSTEP },
+      data: {},
+    }));
+    const initialEdges: Edge[] = [];
+    for (let i = 0; i < ids.length - 1; i++) {
+      initialEdges.push({
+        id: `${ids[i]}-${ids[i + 1]}`,
+        source: ids[i],
+        target: ids[i + 1],
+        style: { stroke: "var(--border-strong)", strokeWidth: 2 },
+      });
+    }
+    setNodes(initialNodes);
+    setEdges(initialEdges);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function addStep(kind: "text" | "button") {
-    setSteps((prev) => [
-      ...prev,
-      {
-        id: uid(),
-        kind,
-        message_text: kind === "text" ? "Ainda dá tempo 😉" : "Aqui está 👇",
-        link_url: "",
-        link_button_label: "Acessar",
-        delay_minutes: 60,
-      },
-    ]);
+    const newStep: StepBlock = {
+      id: uid(),
+      kind,
+      message_text: kind === "text" ? "Ainda dá tempo 😉" : "Aqui está 👇",
+      link_url: "",
+      link_button_label: "Acessar",
+      delay_minutes: 60,
+    };
+    setSteps((prev) => [...prev, newStep]);
     setAddMenuOpen(false);
+
+    setNodes((nds) => {
+      const addNode = nds.find((n) => n.id === "add");
+      const pos = addNode ? { ...addNode.position } : { x: 40, y: nds.length * YSTEP };
+      const others = nds.filter((n) => n.id !== "add");
+      return [
+        ...others,
+        { id: newStep.id, type: "block", position: pos, data: {} },
+        { id: "add", type: "add", position: { x: pos.x, y: pos.y + YSTEP }, data: {} },
+      ];
+    });
+
+    setEdges((eds) => {
+      // reconecta: quem apontava pro "add" agora aponta pro novo passo, e o novo passo aponta pro "add"
+      const withoutToAdd = eds.filter((e) => e.target !== "add");
+      const incomingToAdd = eds.find((e) => e.target === "add");
+      const newEdges: Edge[] = [...withoutToAdd];
+      if (incomingToAdd) {
+        newEdges.push({
+          id: `${incomingToAdd.source}-${newStep.id}`,
+          source: incomingToAdd.source,
+          target: newStep.id,
+          style: { stroke: "var(--border-strong)", strokeWidth: 2 },
+        });
+      }
+      newEdges.push({
+        id: `${newStep.id}-add`,
+        source: newStep.id,
+        target: "add",
+        style: { stroke: "var(--border-strong)", strokeWidth: 2 },
+      });
+      return newEdges;
+    });
   }
 
   function removeStep(id: string) {
     setSteps((prev) => prev.filter((s) => s.id !== id));
+    setNodes((nds) => nds.filter((n) => n.id !== id));
+    setEdges((eds) => {
+      const incoming = eds.find((e) => e.target === id);
+      const outgoing = eds.find((e) => e.source === id);
+      const rest = eds.filter((e) => e.source !== id && e.target !== id);
+      if (incoming && outgoing) {
+        rest.push({
+          id: `${incoming.source}-${outgoing.target}`,
+          source: incoming.source,
+          target: outgoing.target,
+          style: { stroke: "var(--border-strong)", strokeWidth: 2 },
+        });
+      }
+      return rest;
+    });
     if (editing === id) setEditing(null);
   }
 
@@ -128,38 +208,32 @@ export default function FlowBuilder() {
     setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   }
 
-  const triggerLabel = useMemo(() => {
-    const list: string[] = [];
-    if (trigger.trigger_comment) list.push("comentário");
-    if (trigger.trigger_story_reply) list.push("story");
-    if (trigger.trigger_dm) list.push("dm");
-    return `${list.join(" · ") || "sem gatilho"} · "${trigger.keywords || "qualquer"}"`;
-  }, [trigger]);
+  const onConnect = useCallback(
+    (connection: Connection) =>
+      setEdges((eds) =>
+        addEdge({ ...connection, style: { stroke: "var(--signal)", strokeWidth: 2 } }, eds)
+      ),
+    [setEdges]
+  );
 
-  const nodes: Node[] = useMemo(() => {
-    let y = 0;
-    const list: Node[] = [];
+  // sincroniza o CONTEÚDO exibido nos blocos sem mexer na posição deles
+  useEffect(() => {
+    const triggerLabel = (() => {
+      const list: string[] = [];
+      if (trigger.trigger_comment) list.push("comentário");
+      if (trigger.trigger_story_reply) list.push("story");
+      if (trigger.trigger_dm) list.push("dm");
+      return `${list.join(" · ") || "sem gatilho"} · "${trigger.keywords || "qualquer"}"`;
+    })();
 
-    list.push({
-      id: "trigger",
-      type: "block",
-      position: { x: 40, y },
-      data: {
-        kind: "trigger",
+    const dataById: Record<string, any> = {
+      trigger: {
         title: "Quando...",
         icon: "⚡",
         preview: triggerLabel,
         onClick: () => setEditing("trigger"),
       },
-    });
-    y += YSTEP;
-
-    list.push({
-      id: "publicReply",
-      type: "block",
-      position: { x: 40, y },
-      data: {
-        kind: "publicReply",
+      publicReply: {
         title: "Resposta pública",
         icon: "💬",
         preview: !publicReply.enabled
@@ -170,67 +244,31 @@ export default function FlowBuilder() {
         muted: !publicReply.enabled,
         onClick: () => setEditing("publicReply"),
       },
-    });
-    y += YSTEP;
-
-    list.push({
-      id: "dm",
-      type: "block",
-      position: { x: 40, y },
-      data: {
-        kind: "dm",
+      dm: {
         title: "Enviar mensagem",
         icon: "✉️",
         preview: dm.ai_enabled ? "gerada por IA" : dm.text,
         footer: `botão: ${dm.quick_reply_label}`,
         onClick: () => setEditing("dm"),
       },
-    });
-    y += YSTEP;
-
+      add: { onClick: () => setAddMenuOpen((o) => !o), open: addMenuOpen, addStep },
+    };
     steps.forEach((step) => {
-      list.push({
-        id: step.id,
-        type: "block",
-        position: { x: 40, y },
-        data: {
-          kind: "step",
-          title: step.kind === "button" ? "Enviar mensagem com botão" : "Enviar mensagem",
-          icon: step.kind === "button" ? "🔗" : "💌",
-          preview: step.message_text,
-          footer: `${step.delay_minutes} min depois${
-            step.kind === "button" && step.link_url ? ` · ${step.link_button_label}` : ""
-          }`,
-          onClick: () => setEditing(step.id),
-          onRemove: () => removeStep(step.id),
-        },
-      });
-      y += YSTEP;
+      dataById[step.id] = {
+        title: step.kind === "button" ? "Enviar mensagem com botão" : "Enviar mensagem",
+        icon: step.kind === "button" ? "🔗" : "💌",
+        preview: step.message_text,
+        footer: `${step.delay_minutes} min depois${
+          step.kind === "button" && step.link_url ? ` · ${step.link_button_label}` : ""
+        }`,
+        onClick: () => setEditing(step.id),
+        onRemove: () => removeStep(step.id),
+      };
     });
 
-    list.push({
-      id: "add",
-      type: "add",
-      position: { x: 40, y },
-      data: { onClick: () => setAddMenuOpen((o) => !o), open: addMenuOpen, addStep },
-    });
-
-    return list;
-  }, [triggerLabel, publicReply, dm, steps, addMenuOpen]);
-
-  const edges: Edge[] = useMemo(() => {
-    const ids = nodes.map((n) => n.id);
-    const result: Edge[] = [];
-    for (let i = 0; i < ids.length - 1; i++) {
-      result.push({
-        id: `${ids[i]}-${ids[i + 1]}`,
-        source: ids[i],
-        target: ids[i + 1],
-        style: { stroke: "var(--border-strong)", strokeWidth: 2 },
-      });
-    }
-    return result;
-  }, [nodes]);
+    setNodes((nds) => nds.map((n) => (dataById[n.id] ? { ...n, data: dataById[n.id] } : n)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trigger, publicReply, dm, steps, addMenuOpen, media]);
 
   async function handleSubmit() {
     if (!name.trim()) {
@@ -279,7 +317,10 @@ export default function FlowBuilder() {
           placeholder="Nome da automação"
           className="input max-w-xs"
         />
-        <button onClick={handleSubmit} disabled={saving} className="btn btn-primary ml-auto">
+        <p className="text-xs text-[var(--ink-faint)]">
+          Arraste os blocos, conecte puxando das bolinhas, selecione uma linha e aperte Delete pra desconectar.
+        </p>
+        <button onClick={handleSubmit} disabled={saving} className="btn btn-primary ml-auto shrink-0">
           {saving ? "Salvando..." : "Criar automação"}
         </button>
       </div>
@@ -289,11 +330,15 @@ export default function FlowBuilder() {
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
           fitView
           proOptions={{ hideAttribution: true }}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable={false}
+          nodesDraggable
+          nodesConnectable
+          elementsSelectable
+          deleteKeyCode={["Backspace", "Delete"]}
         >
           <Background gap={20} color="var(--border)" />
         </ReactFlow>
@@ -443,14 +488,14 @@ export default function FlowBuilder() {
 function BlockNode({ data }: { data: any }) {
   return (
     <div className="w-72">
-      <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Top} style={{ width: 10, height: 10, background: "var(--indigo)" }} />
       <div
         onClick={data.onClick}
         className={`rounded-xl border overflow-hidden cursor-pointer bg-[var(--surface)] hover:shadow-md transition-shadow ${
           data.muted ? "opacity-50 border-dashed" : "border-[var(--border)]"
         }`}
       >
-        <div className="flex items-center justify-between gap-2 px-3 py-2 bg-[var(--paper)] border-b border-[var(--border)]">
+        <div className="flex items-center justify-between gap-2 px-3 py-2 bg-[var(--paper)] border-b border-[var(--border)] cursor-grab active:cursor-grabbing">
           <div className="flex items-center gap-2">
             <span className="text-base">{data.icon}</span>
             <span className="text-xs font-medium text-[var(--ink-soft)]">{data.title}</span>
@@ -472,7 +517,7 @@ function BlockNode({ data }: { data: any }) {
           {data.footer && <p className="text-xs text-[var(--ink-faint)] mt-1.5 mono">{data.footer}</p>}
         </div>
       </div>
-      <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Bottom} style={{ width: 10, height: 10, background: "var(--indigo)" }} />
     </div>
   );
 }
@@ -480,7 +525,7 @@ function BlockNode({ data }: { data: any }) {
 function AddNode({ data }: { data: any }) {
   return (
     <div className="relative flex flex-col items-center">
-      <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Top} style={{ width: 10, height: 10, background: "var(--indigo)" }} />
       <button
         onClick={data.onClick}
         className="w-9 h-9 rounded-full bg-[var(--indigo)] text-white flex items-center justify-center text-lg shadow hover:opacity-90"
@@ -503,6 +548,7 @@ function AddNode({ data }: { data: any }) {
           </button>
         </div>
       )}
+      <Handle type="source" position={Position.Bottom} style={{ width: 10, height: 10, background: "var(--indigo)" }} />
     </div>
   );
 }
