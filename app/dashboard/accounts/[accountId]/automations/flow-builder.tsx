@@ -434,9 +434,16 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
           <Background gap={20} color="var(--border)" />
         </ReactFlow>
 
-        <div className="absolute bottom-5 right-5 z-10">
+        <div className="absolute top-5 right-5 z-10">
+          <button
+            onClick={() => setAddMenuOpen((o) => !o)}
+            className="w-12 h-12 rounded-full bg-[var(--indigo)] text-white flex items-center justify-center text-2xl shadow-lg hover:opacity-90 ml-auto"
+            title="Adicionar bloco"
+          >
+            +
+          </button>
           {addMenuOpen && (
-            <div className="card p-1.5 w-56 shadow-lg mb-2">
+            <div className="card p-1.5 w-56 shadow-lg mt-2 ml-auto">
               {(Object.keys(BLOCK_META) as BlockKind[]).map((kind) => (
                 <button
                   key={kind}
@@ -448,13 +455,6 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
               ))}
             </div>
           )}
-          <button
-            onClick={() => setAddMenuOpen((o) => !o)}
-            className="w-12 h-12 rounded-full bg-[var(--indigo)] text-white flex items-center justify-center text-2xl shadow-lg hover:opacity-90 ml-auto"
-            title="Adicionar bloco"
-          >
-            +
-          </button>
         </div>
       </div>
 
