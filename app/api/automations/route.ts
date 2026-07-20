@@ -62,5 +62,19 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // passos extras da sequência (blocos adicionados no construtor visual)
+  if (Array.isArray(body.steps) && body.steps.length > 0) {
+    const rows = body.steps.map((step: any, index: number) => ({
+      automation_id: data.id,
+      step_order: index,
+      delay_minutes: step.delay_minutes ?? 60,
+      message_text: step.message_text ?? null,
+      link_url: step.link_url ?? null,
+      link_button_label: step.link_button_label ?? null,
+    }));
+    await supabaseAdmin.from("followups").insert(rows);
+  }
+
   return NextResponse.json({ data });
 }

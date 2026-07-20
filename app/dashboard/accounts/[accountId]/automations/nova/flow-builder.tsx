@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ReactFlow,
@@ -17,194 +17,206 @@ type Media = {
   media_type: string;
   media_url?: string;
   thumbnail_url?: string;
-  permalink: string;
 };
 
-type FormState = {
-  name: string;
+type StepBlock = {
+  id: string;
+  kind: "text" | "button";
+  message_text: string;
+  link_url: string;
+  link_button_label: string;
+  delay_minutes: number;
+};
+
+type TriggerData = {
   trigger_comment: boolean;
   trigger_story_reply: boolean;
   trigger_dm: boolean;
   keywords: string;
   match_type: string;
   target_media_id: string;
-  public_replies: string;
-  welcome_dm_text: string;
-  quick_reply_label: string;
-  link_text: string;
-  link_button_label: string;
-  link_url: string;
-  reminder_text: string;
-  reminder_delay_minutes: number;
+};
+
+type ReplyData = {
+  enabled: boolean;
   ai_enabled: boolean;
   ai_tone: string;
+  text: string;
 };
 
-const initialForm: FormState = {
-  name: "",
-  trigger_comment: true,
-  trigger_story_reply: false,
-  trigger_dm: false,
-  keywords: "",
-  match_type: "contains",
-  target_media_id: "",
-  public_replies: "",
-  welcome_dm_text: "Oi! Toque no botão abaixo pra continuar 👇",
-  quick_reply_label: "Quero o link",
-  link_text: "Aqui está o link 👇",
-  link_button_label: "Acessar",
-  link_url: "",
-  reminder_text: "",
-  reminder_delay_minutes: 60,
-  ai_enabled: false,
-  ai_tone: "",
+type DmData = {
+  ai_enabled: boolean;
+  ai_tone: string;
+  text: string;
+  quick_reply_label: string;
 };
 
-type BlockId = "trigger" | "publicReply" | "dm" | "link" | "reminder" | "more";
-
-function BlockNode({ data }: { data: any }) {
-  return (
-    <div
-      onClick={data.onClick}
-      className={`w-64 rounded-xl border-2 p-4 cursor-pointer transition-all bg-[var(--surface)] ${
-        data.active ? "border-[var(--indigo)] shadow-md" : "border-[var(--border)]"
-      } ${data.dashed ? "border-dashed opacity-70" : ""}`}
-    >
-      <Handle type="target" position={Position.Top} style={{ opacity: data.first ? 0 : 1 }} />
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-lg">{data.icon}</span>
-        <p className="text-sm font-medium text-[var(--ink)]">{data.title}</p>
-      </div>
-      <p className="text-xs text-[var(--ink-faint)] line-clamp-2">{data.subtitle}</p>
-      <Handle type="source" position={Position.Bottom} style={{ opacity: data.last ? 0 : 1 }} />
-    </div>
-  );
+function uid() {
+  return Math.random().toString(36).slice(2, 10);
 }
 
-const nodeTypes = { block: BlockNode };
+const YSTEP = 150;
 
 export default function FlowBuilder() {
   const router = useRouter();
   const params = useParams<{ accountId: string }>();
   const [saving, setSaving] = useState(false);
   const [media, setMedia] = useState<Media[]>([]);
-  const [loadingMedia, setLoadingMedia] = useState(true);
-  const [form, setForm] = useState<FormState>(initialForm);
-  const [openPanel, setOpenPanel] = useState<BlockId | null>("trigger");
+  const [name, setName] = useState("");
+
+  const [trigger, setTrigger] = useState<TriggerData>({
+    trigger_comment: true,
+    trigger_story_reply: false,
+    trigger_dm: false,
+    keywords: "",
+    match_type: "contains",
+    target_media_id: "",
+  });
+  const [publicReply, setPublicReply] = useState<ReplyData>({
+    enabled: true,
+    ai_enabled: false,
+    ai_tone: "",
+    text: "Te mandei no privado! 📩",
+  });
+  const [dm, setDm] = useState<DmData>({
+    ai_enabled: false,
+    ai_tone: "",
+    text: "Oi! Toque no botão abaixo pra continuar 👇",
+    quick_reply_label: "Quero o link",
+  });
+  const [steps, setSteps] = useState<StepBlock[]>([
+    {
+      id: uid(),
+      kind: "button",
+      message_text: "Aqui está o link 👇",
+      link_url: "",
+      link_button_label: "Acessar",
+      delay_minutes: 1,
+    },
+  ]);
+
+  const [editing, setEditing] = useState<string | null>(null);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
 
   useEffect(() => {
     fetch(`/api/media?account_id=${params.accountId}`)
       .then((r) => r.json())
-      .then((json) => setMedia(json.data ?? []))
-      .finally(() => setLoadingMedia(false));
+      .then((json) => setMedia(json.data ?? []));
   }, [params.accountId]);
 
-  function update<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((f) => ({ ...f, [key]: value }));
+  function addStep(kind: "text" | "button") {
+    setSteps((prev) => [
+      ...prev,
+      {
+        id: uid(),
+        kind,
+        message_text: kind === "text" ? "Ainda dá tempo 😉" : "Aqui está 👇",
+        link_url: "",
+        link_button_label: "Acessar",
+        delay_minutes: 60,
+      },
+    ]);
+    setAddMenuOpen(false);
+  }
+
+  function removeStep(id: string) {
+    setSteps((prev) => prev.filter((s) => s.id !== id));
+    if (editing === id) setEditing(null);
+  }
+
+  function updateStep(id: string, patch: Partial<StepBlock>) {
+    setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   }
 
   const triggerLabel = useMemo(() => {
-    const list = [];
-    if (form.trigger_comment) list.push("comentário");
-    if (form.trigger_story_reply) list.push("story");
-    if (form.trigger_dm) list.push("dm");
-    const words = form.keywords || "qualquer palavra";
-    return `${list.join(" · ") || "sem gatilho"} · "${words}"`;
-  }, [form.trigger_comment, form.trigger_story_reply, form.trigger_dm, form.keywords]);
+    const list: string[] = [];
+    if (trigger.trigger_comment) list.push("comentário");
+    if (trigger.trigger_story_reply) list.push("story");
+    if (trigger.trigger_dm) list.push("dm");
+    return `${list.join(" · ") || "sem gatilho"} · "${trigger.keywords || "qualquer"}"`;
+  }, [trigger]);
 
   const nodes: Node[] = useMemo(() => {
-    const list: Node[] = [
-      {
-        id: "trigger",
-        type: "block",
-        position: { x: 0, y: 0 },
-        data: {
-          icon: "⚡",
-          title: "Gatilho",
-          subtitle: triggerLabel,
-          active: openPanel === "trigger",
-          first: true,
-          onClick: () => setOpenPanel("trigger"),
-        },
-      },
-    ];
+    let y = 0;
+    const list: Node[] = [];
 
-    if (form.trigger_comment) {
-      list.push({
-        id: "publicReply",
-        type: "block",
-        position: { x: 0, y: 130 },
-        data: {
-          icon: "💬",
-          title: "Resposta pública (opcional)",
-          subtitle: form.ai_enabled
-            ? "gerada por IA"
-            : form.public_replies || "nenhuma configurada",
-          active: openPanel === "publicReply",
-          onClick: () => setOpenPanel("publicReply"),
-        },
-      });
-    }
+    list.push({
+      id: "trigger",
+      type: "block",
+      position: { x: 40, y },
+      data: {
+        kind: "trigger",
+        title: "Quando...",
+        icon: "⚡",
+        preview: triggerLabel,
+        onClick: () => setEditing("trigger"),
+      },
+    });
+    y += YSTEP;
+
+    list.push({
+      id: "publicReply",
+      type: "block",
+      position: { x: 40, y },
+      data: {
+        kind: "publicReply",
+        title: "Resposta pública",
+        icon: "💬",
+        preview: !publicReply.enabled
+          ? "desativada"
+          : publicReply.ai_enabled
+          ? "gerada por IA"
+          : publicReply.text,
+        muted: !publicReply.enabled,
+        onClick: () => setEditing("publicReply"),
+      },
+    });
+    y += YSTEP;
 
     list.push({
       id: "dm",
       type: "block",
-      position: { x: 0, y: form.trigger_comment ? 260 : 130 },
+      position: { x: 40, y },
       data: {
+        kind: "dm",
+        title: "Enviar mensagem",
         icon: "✉️",
-        title: "DM de boas-vindas",
-        subtitle: form.ai_enabled ? "gerada por IA" : form.welcome_dm_text || "sem texto",
-        active: openPanel === "dm",
-        onClick: () => setOpenPanel("dm"),
+        preview: dm.ai_enabled ? "gerada por IA" : dm.text,
+        footer: `botão: ${dm.quick_reply_label}`,
+        onClick: () => setEditing("dm"),
       },
     });
+    y += YSTEP;
 
-    const baseY = (form.trigger_comment ? 260 : 130) + 130;
-
-    list.push({
-      id: "link",
-      type: "block",
-      position: { x: 0, y: baseY },
-      data: {
-        icon: "🔗",
-        title: "Link (após tocar no botão)",
-        subtitle: form.link_url || "sem link configurado",
-        active: openPanel === "link",
-        onClick: () => setOpenPanel("link"),
-      },
-    });
-
-    list.push({
-      id: "reminder",
-      type: "block",
-      position: { x: 0, y: baseY + 130 },
-      data: {
-        icon: "⏰",
-        title: "Lembrete (opcional)",
-        subtitle: form.reminder_text
-          ? `${form.reminder_text} · ${form.reminder_delay_minutes}min depois`
-          : "nenhum configurado",
-        active: openPanel === "reminder",
-        onClick: () => setOpenPanel("reminder"),
-      },
+    steps.forEach((step) => {
+      list.push({
+        id: step.id,
+        type: "block",
+        position: { x: 40, y },
+        data: {
+          kind: "step",
+          title: step.kind === "button" ? "Enviar mensagem com botão" : "Enviar mensagem",
+          icon: step.kind === "button" ? "🔗" : "💌",
+          preview: step.message_text,
+          footer: `${step.delay_minutes} min depois${
+            step.kind === "button" && step.link_url ? ` · ${step.link_button_label}` : ""
+          }`,
+          onClick: () => setEditing(step.id),
+          onRemove: () => removeStep(step.id),
+        },
+      });
+      y += YSTEP;
     });
 
     list.push({
-      id: "more",
-      type: "block",
-      position: { x: 0, y: baseY + 260 },
-      data: {
-        icon: "➕",
-        title: "Mais passos",
-        subtitle: "disponível depois de criar, na tela de Sequência",
-        dashed: true,
-        last: true,
-        onClick: () => {},
-      },
+      id: "add",
+      type: "add",
+      position: { x: 40, y },
+      data: { onClick: () => setAddMenuOpen((o) => !o), open: addMenuOpen, addStep },
     });
 
     return list;
-  }, [form, openPanel, triggerLabel]);
+  }, [triggerLabel, publicReply, dm, steps, addMenuOpen]);
 
   const edges: Edge[] = useMemo(() => {
     const ids = nodes.map((n) => n.id);
@@ -221,26 +233,58 @@ export default function FlowBuilder() {
   }, [nodes]);
 
   async function handleSubmit() {
+    if (!name.trim()) {
+      alert("Dá um nome pra automação primeiro.");
+      return;
+    }
     setSaving(true);
+
     const res = await fetch("/api/automations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...form,
         account_id: params.accountId,
-        keywords: form.keywords.split(",").map((k) => k.trim()).filter(Boolean),
-        public_replies: form.public_replies.split("\n").map((k) => k.trim()).filter(Boolean),
-        target_media_id: form.target_media_id || null,
+        name,
+        trigger_comment: trigger.trigger_comment,
+        trigger_story_reply: trigger.trigger_story_reply,
+        trigger_dm: trigger.trigger_dm,
+        keywords: trigger.keywords.split(",").map((k) => k.trim()).filter(Boolean),
+        match_type: trigger.match_type,
+        target_media_id: trigger.target_media_id || null,
+        public_replies: publicReply.enabled && !publicReply.ai_enabled ? [publicReply.text] : [],
+        welcome_dm_text: dm.text,
+        quick_reply_label: dm.quick_reply_label,
+        ai_enabled: dm.ai_enabled || publicReply.ai_enabled,
+        ai_tone: dm.ai_tone || publicReply.ai_tone,
+        steps: steps.map((s) => ({
+          message_text: s.message_text,
+          link_url: s.kind === "button" ? s.link_url : null,
+          link_button_label: s.kind === "button" ? s.link_button_label : null,
+          delay_minutes: s.delay_minutes,
+        })),
       }),
     });
+
     setSaving(false);
     if (res.ok) router.push(`/dashboard/accounts/${params.accountId}`);
     else alert("Erro ao salvar. Tente de novo.");
   }
 
   return (
-    <div className="grid lg:grid-cols-[1fr_360px] gap-4 h-[calc(100vh-220px)] min-h-[500px]">
-      <div className="card overflow-hidden">
+    <div>
+      <div className="flex items-center gap-3 mb-4">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Nome da automação"
+          className="input max-w-xs"
+        />
+        <button onClick={handleSubmit} disabled={saving} className="btn btn-primary ml-auto">
+          {saving ? "Salvando..." : "Criar automação"}
+        </button>
+      </div>
+
+      <div className="card overflow-hidden h-[calc(100vh-260px)] min-h-[500px] relative">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -255,177 +299,289 @@ export default function FlowBuilder() {
         </ReactFlow>
       </div>
 
-      <div className="card p-5 overflow-y-auto">
-        <label className="block mb-4">
-          <span className="block text-xs font-medium text-[var(--ink-soft)] mb-1.5">
-            Nome da automação
-          </span>
-          <input
-            required
-            value={form.name}
-            onChange={(e) => update("name", e.target.value)}
-            className="input"
-            placeholder="Ex: Promo de julho"
-          />
-        </label>
-
-        {openPanel === "trigger" && (
-          <div className="space-y-4">
-            <p className="text-sm font-medium text-[var(--ink)]">⚡ Gatilho</p>
-            <div className="flex flex-col gap-2 text-sm">
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={form.trigger_comment} onChange={(e) => update("trigger_comment", e.target.checked)} />
-                Comentário
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={form.trigger_story_reply} onChange={(e) => update("trigger_story_reply", e.target.checked)} />
-                Resposta a story
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={form.trigger_dm} onChange={(e) => update("trigger_dm", e.target.checked)} />
-                DM direta
-              </label>
-            </div>
-            <label className="block">
-              <span className="block text-xs font-medium text-[var(--ink-soft)] mb-1.5">Palavras-chave (vírgula)</span>
-              <input value={form.keywords} onChange={(e) => update("keywords", e.target.value)} className="input" placeholder="quero, eu quero" />
+      {editing === "trigger" && (
+        <EditModal title="⚡ Quando..." onClose={() => setEditing(null)}>
+          <div className="flex flex-col gap-2 text-sm mb-3">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={trigger.trigger_comment} onChange={(e) => setTrigger((t) => ({ ...t, trigger_comment: e.target.checked }))} />
+              Comentário em post/reels
             </label>
-            <label className="block">
-              <span className="block text-xs font-medium text-[var(--ink-soft)] mb-1.5">Correspondência</span>
-              <select value={form.match_type} onChange={(e) => update("match_type", e.target.value)} className="input">
-                <option value="contains">Contém a palavra</option>
-                <option value="exact">É exatamente a palavra</option>
-                <option value="any">Qualquer comentário</option>
-              </select>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={trigger.trigger_story_reply} onChange={(e) => setTrigger((t) => ({ ...t, trigger_story_reply: e.target.checked }))} />
+              Resposta a story
             </label>
-            <div>
-              <span className="block text-xs font-medium text-[var(--ink-soft)] mb-1.5">Post específico (opcional)</span>
-              {loadingMedia ? (
-                <p className="text-xs text-[var(--ink-faint)]">Carregando...</p>
-              ) : (
-                <div className="grid grid-cols-4 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => update("target_media_id", "")}
-                    className={`relative aspect-square rounded-lg flex items-center justify-center text-[10px] text-center p-1 ${
-                      form.target_media_id === "" ? "ring-2 ring-offset-1 ring-[var(--signal)] bg-[var(--signal-soft)]" : "border border-[var(--border)] opacity-60"
-                    }`}
-                  >
-                    Todos
-                  </button>
-                  {media.map((m) => (
-                    <button
-                      type="button"
-                      key={m.id}
-                      onClick={() => update("target_media_id", m.id)}
-                      className={`relative aspect-square rounded-lg overflow-hidden ${
-                        form.target_media_id === m.id ? "ring-2 ring-offset-1 ring-[var(--signal)]" : "border border-[var(--border)] opacity-60"
-                      }`}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={m.thumbnail_url || m.media_url} alt="" className="w-full h-full object-cover" />
-                    </button>
-                  ))}
-                </div>
-              )}
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={trigger.trigger_dm} onChange={(e) => setTrigger((t) => ({ ...t, trigger_dm: e.target.checked }))} />
+              DM direta
+            </label>
+          </div>
+          <Field label="Palavras-chave (vírgula)">
+            <input value={trigger.keywords} onChange={(e) => setTrigger((t) => ({ ...t, keywords: e.target.value }))} className="input" placeholder="quero, eu quero" />
+          </Field>
+          <Field label="Correspondência">
+            <select value={trigger.match_type} onChange={(e) => setTrigger((t) => ({ ...t, match_type: e.target.value }))} className="input">
+              <option value="contains">Contém a palavra</option>
+              <option value="exact">É exatamente a palavra</option>
+              <option value="any">Qualquer comentário</option>
+            </select>
+          </Field>
+          <div>
+            <span className="block text-xs font-medium text-[var(--ink-soft)] mb-1.5">Post específico (opcional)</span>
+            <div className="grid grid-cols-5 gap-2">
+              <button
+                type="button"
+                onClick={() => setTrigger((t) => ({ ...t, target_media_id: "" }))}
+                className={`aspect-square rounded-lg text-[10px] flex items-center justify-center text-center p-1 ${
+                  trigger.target_media_id === "" ? "ring-2 ring-[var(--signal)] bg-[var(--signal-soft)]" : "border border-[var(--border)] opacity-60"
+                }`}
+              >
+                Todos
+              </button>
+              {media.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setTrigger((t) => ({ ...t, target_media_id: m.id }))}
+                  className={`aspect-square rounded-lg overflow-hidden ${
+                    trigger.target_media_id === m.id ? "ring-2 ring-[var(--signal)]" : "border border-[var(--border)] opacity-60"
+                  }`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={m.thumbnail_url || m.media_url} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
             </div>
           </div>
-        )}
+        </EditModal>
+      )}
 
-        {openPanel === "publicReply" && (
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-[var(--ink)]">💬 Resposta pública</p>
-            <AiToggle form={form} update={update} />
-            {!form.ai_enabled && (
-              <textarea
-                value={form.public_replies}
-                onChange={(e) => update("public_replies", e.target.value)}
-                className="input"
-                rows={4}
-                placeholder={"Te mandei no privado! 📩\nJá foi no seu direct!"}
+      {editing === "publicReply" && (
+        <EditModal title="💬 Resposta pública" onClose={() => setEditing(null)}>
+          <label className="flex items-center gap-2 text-sm mb-3">
+            <input type="checkbox" checked={publicReply.enabled} onChange={(e) => setPublicReply((p) => ({ ...p, enabled: e.target.checked }))} />
+            Responder publicamente no comentário
+          </label>
+          {publicReply.enabled && (
+            <>
+              <AiToggle
+                aiEnabled={publicReply.ai_enabled}
+                tone={publicReply.ai_tone}
+                onAiChange={(v) => setPublicReply((p) => ({ ...p, ai_enabled: v }))}
+                onToneChange={(v) => setPublicReply((p) => ({ ...p, ai_tone: v }))}
               />
-            )}
-          </div>
-        )}
+              {!publicReply.ai_enabled && (
+                <Field label="Texto">
+                  <textarea value={publicReply.text} onChange={(e) => setPublicReply((p) => ({ ...p, text: e.target.value }))} className="input" rows={3} />
+                </Field>
+              )}
+            </>
+          )}
+        </EditModal>
+      )}
 
-        {openPanel === "dm" && (
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-[var(--ink)]">✉️ DM de boas-vindas</p>
-            <AiToggle form={form} update={update} />
-            {!form.ai_enabled && (
-              <textarea required value={form.welcome_dm_text} onChange={(e) => update("welcome_dm_text", e.target.value)} className="input" rows={3} />
-            )}
-            <label className="block">
-              <span className="block text-xs font-medium text-[var(--ink-soft)] mb-1.5">Texto do botão de resposta rápida</span>
-              <input required value={form.quick_reply_label} onChange={(e) => update("quick_reply_label", e.target.value)} className="input" />
-            </label>
-          </div>
-        )}
+      {editing === "dm" && (
+        <EditModal title="✉️ Enviar mensagem" onClose={() => setEditing(null)}>
+          <AiToggle
+            aiEnabled={dm.ai_enabled}
+            tone={dm.ai_tone}
+            onAiChange={(v) => setDm((d) => ({ ...d, ai_enabled: v }))}
+            onToneChange={(v) => setDm((d) => ({ ...d, ai_tone: v }))}
+          />
+          {!dm.ai_enabled && (
+            <Field label="Texto">
+              <textarea required value={dm.text} onChange={(e) => setDm((d) => ({ ...d, text: e.target.value }))} className="input" rows={3} />
+            </Field>
+          )}
+          <Field label="Texto do botão de resposta rápida">
+            <input required value={dm.quick_reply_label} onChange={(e) => setDm((d) => ({ ...d, quick_reply_label: e.target.value }))} className="input" />
+          </Field>
+        </EditModal>
+      )}
 
-        {openPanel === "link" && (
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-[var(--ink)]">🔗 Link</p>
-            <label className="block">
-              <span className="block text-xs font-medium text-[var(--ink-soft)] mb-1.5">Texto antes do link</span>
-              <input value={form.link_text} onChange={(e) => update("link_text", e.target.value)} className="input" />
-            </label>
-            <label className="block">
-              <span className="block text-xs font-medium text-[var(--ink-soft)] mb-1.5">Rótulo do botão</span>
-              <input value={form.link_button_label} onChange={(e) => update("link_button_label", e.target.value)} className="input" />
-            </label>
-            <label className="block">
-              <span className="block text-xs font-medium text-[var(--ink-soft)] mb-1.5">URL</span>
-              <input required type="url" value={form.link_url} onChange={(e) => update("link_url", e.target.value)} className="input" placeholder="https://..." />
-            </label>
-          </div>
-        )}
+      {steps.map(
+        (step) =>
+          editing === step.id && (
+            <EditModal
+              key={step.id}
+              title={step.kind === "button" ? "🔗 Mensagem com botão" : "💌 Mensagem de texto"}
+              onClose={() => setEditing(null)}
+              onDelete={() => removeStep(step.id)}
+            >
+              <Field label="Texto">
+                <textarea value={step.message_text} onChange={(e) => updateStep(step.id, { message_text: e.target.value })} className="input" rows={3} />
+              </Field>
+              {step.kind === "button" && (
+                <>
+                  <Field label="URL do botão">
+                    <input type="url" value={step.link_url} onChange={(e) => updateStep(step.id, { link_url: e.target.value })} className="input" placeholder="https://..." />
+                  </Field>
+                  <Field label="Rótulo do botão">
+                    <input value={step.link_button_label} onChange={(e) => updateStep(step.id, { link_button_label: e.target.value })} className="input" />
+                  </Field>
+                </>
+              )}
+              <Field label="Atraso (minutos, a partir de quando a pessoa abre a conversa)">
+                <input
+                  type="number"
+                  min={1}
+                  value={step.delay_minutes}
+                  onChange={(e) => updateStep(step.id, { delay_minutes: Number(e.target.value) })}
+                  className="input"
+                />
+              </Field>
+            </EditModal>
+          )
+      )}
+    </div>
+  );
+}
 
-        {openPanel === "reminder" && (
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-[var(--ink)]">⏰ Lembrete</p>
-            <label className="block">
-              <span className="block text-xs font-medium text-[var(--ink-soft)] mb-1.5">Texto (opcional)</span>
-              <input value={form.reminder_text} onChange={(e) => update("reminder_text", e.target.value)} className="input" placeholder="Ainda dá tempo 😉" />
-            </label>
-            <label className="block">
-              <span className="block text-xs font-medium text-[var(--ink-soft)] mb-1.5">Atraso (minutos)</span>
-              <input type="number" min={1} value={form.reminder_delay_minutes} onChange={(e) => update("reminder_delay_minutes", Number(e.target.value))} className="input" />
-            </label>
-          </div>
-        )}
+// ---------------------------------------------------------
+// Blocos do canvas
+// ---------------------------------------------------------
 
-        <button
-          onClick={handleSubmit}
-          disabled={saving || !form.name}
-          className="btn btn-primary w-full mt-6"
-        >
-          {saving ? "Salvando..." : "Criar automação"}
-        </button>
+function BlockNode({ data }: { data: any }) {
+  return (
+    <div className="w-72">
+      <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
+      <div
+        onClick={data.onClick}
+        className={`rounded-xl border overflow-hidden cursor-pointer bg-[var(--surface)] hover:shadow-md transition-shadow ${
+          data.muted ? "opacity-50 border-dashed" : "border-[var(--border)]"
+        }`}
+      >
+        <div className="flex items-center justify-between gap-2 px-3 py-2 bg-[var(--paper)] border-b border-[var(--border)]">
+          <div className="flex items-center gap-2">
+            <span className="text-base">{data.icon}</span>
+            <span className="text-xs font-medium text-[var(--ink-soft)]">{data.title}</span>
+          </div>
+          {data.onRemove && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                data.onRemove();
+              }}
+              className="text-[var(--ink-faint)] hover:text-[var(--coral)] text-xs"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+        <div className="px-3 py-3">
+          <p className="text-sm text-[var(--ink)] line-clamp-3">{data.preview}</p>
+          {data.footer && <p className="text-xs text-[var(--ink-faint)] mt-1.5 mono">{data.footer}</p>}
+        </div>
+      </div>
+      <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
+    </div>
+  );
+}
+
+function AddNode({ data }: { data: any }) {
+  return (
+    <div className="relative flex flex-col items-center">
+      <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
+      <button
+        onClick={data.onClick}
+        className="w-9 h-9 rounded-full bg-[var(--indigo)] text-white flex items-center justify-center text-lg shadow hover:opacity-90"
+      >
+        +
+      </button>
+      {data.open && (
+        <div className="absolute top-11 card p-1.5 w-56 z-10 shadow-lg">
+          <button
+            onClick={() => data.addStep("text")}
+            className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-[var(--paper)] text-[var(--ink)]"
+          >
+            💌 Mensagem de texto
+          </button>
+          <button
+            onClick={() => data.addStep("button")}
+            className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-[var(--paper)] text-[var(--ink)]"
+          >
+            🔗 Mensagem com botão
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const nodeTypes = { block: BlockNode, add: AddNode };
+
+// ---------------------------------------------------------
+// Modal de edição
+// ---------------------------------------------------------
+
+function EditModal({
+  title,
+  onClose,
+  onDelete,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  onDelete?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4" onClick={onClose}>
+      <div
+        className="bg-[var(--surface)] rounded-xl p-5 w-full max-w-md max-h-[85vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <p className="font-medium text-[var(--ink)]">{title}</p>
+          <button onClick={onClose} className="text-[var(--ink-faint)]">
+            ✕
+          </button>
+        </div>
+        {children}
+        <div className="flex items-center justify-between mt-4">
+          {onDelete ? (
+            <button onClick={onDelete} className="btn-danger-text text-xs">
+              Excluir bloco
+            </button>
+          ) : (
+            <span />
+          )}
+          <button onClick={onClose} className="btn btn-primary">
+            Pronto
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block mb-3">
+      <span className="block text-xs font-medium text-[var(--ink-soft)] mb-1.5">{label}</span>
+      {children}
+    </label>
+  );
+}
+
 function AiToggle({
-  form,
-  update,
+  aiEnabled,
+  tone,
+  onAiChange,
+  onToneChange,
 }: {
-  form: FormState;
-  update: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
+  aiEnabled: boolean;
+  tone: string;
+  onAiChange: (v: boolean) => void;
+  onToneChange: (v: string) => void;
 }) {
   return (
-    <div>
+    <div className="mb-3">
       <label className="flex items-center gap-2 text-sm mb-2">
-        <input type="checkbox" checked={form.ai_enabled} onChange={(e) => update("ai_enabled", e.target.checked)} />
+        <input type="checkbox" checked={aiEnabled} onChange={(e) => onAiChange(e.target.checked)} />
         Gerar com IA (em vez de texto fixo)
       </label>
-      {form.ai_enabled && (
-        <input
-          value={form.ai_tone}
-          onChange={(e) => update("ai_tone", e.target.value)}
-          className="input"
-          placeholder="Tom da marca (opcional)"
-        />
+      {aiEnabled && (
+        <input value={tone} onChange={(e) => onToneChange(e.target.value)} className="input" placeholder="Tom da marca (opcional)" />
       )}
     </div>
   );
