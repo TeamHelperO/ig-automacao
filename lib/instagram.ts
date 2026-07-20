@@ -61,15 +61,15 @@ export async function exchangeForLongLivedToken(params: {
   appSecret: string;
   shortToken: string;
 }) {
-  const url = new URL(`${GRAPH_BASE}/access_token`);
+  // Esse endpoint específico NÃO usa o prefixo de versão (/v25.0/),
+  // diferente do resto da API — é assim que a documentação da Meta
+  // mostra. Usar a URL versionada devolve "Unsupported request".
+  const url = new URL("https://graph.instagram.com/access_token");
   url.searchParams.set("grant_type", "ig_exchange_token");
   url.searchParams.set("client_secret", params.appSecret);
   url.searchParams.set("access_token", params.shortToken);
 
-  // A documentação da Meta diz GET, mas na prática a API vem rejeitando
-  // GET nesse endpoint ("Unsupported request - method type: get").
-  // POST com os mesmos parâmetros na query resolve.
-  const res = await fetch(url.toString(), { method: "POST" });
+  const res = await fetch(url.toString());
   if (!res.ok) {
     throw new Error(`Falha ao trocar por token longo: ${await res.text()}`);
   }
@@ -82,12 +82,11 @@ export async function exchangeForLongLivedToken(params: {
 
 /** Renova um token longo ainda válido, estendendo por mais 60 dias. */
 export async function refreshLongLivedToken(accessToken: string) {
-  const url = new URL(`${GRAPH_BASE}/refresh_access_token`);
+  const url = new URL("https://graph.instagram.com/refresh_access_token");
   url.searchParams.set("grant_type", "ig_refresh_token");
   url.searchParams.set("access_token", accessToken);
 
-  // mesmo motivo do comentário acima: POST em vez de GET
-  const res = await fetch(url.toString(), { method: "POST" });
+  const res = await fetch(url.toString());
   if (!res.ok) {
     throw new Error(`Falha ao renovar token: ${await res.text()}`);
   }
