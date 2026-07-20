@@ -23,13 +23,18 @@ type Media = {
   thumbnail_url?: string;
 };
 
-type StepBlock = {
+type BlockKind = "publicReply" | "dm" | "text" | "button";
+
+type Block = {
   id: string;
-  kind: "text" | "button";
-  message_text: string;
-  link_url: string;
-  link_button_label: string;
-  delay_minutes: number;
+  kind: BlockKind;
+  text: string;
+  ai_enabled: boolean;
+  ai_tone: string;
+  quick_reply_label: string; // só usado no kind "dm"
+  link_url: string; // só usado no kind "button"
+  link_button_label: string; // só usado no kind "button"
+  delay_minutes: number; // só usado nos kinds "text" e "button"
 };
 
 type TriggerData = {
@@ -41,23 +46,38 @@ type TriggerData = {
   target_media_id: string;
 };
 
-type ReplyData = {
-  enabled: boolean;
-  ai_enabled: boolean;
-  ai_tone: string;
-  text: string;
-};
-
-type DmData = {
-  ai_enabled: boolean;
-  ai_tone: string;
-  text: string;
-  quick_reply_label: string;
-};
-
 function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
+
+function newBlock(kind: BlockKind): Block {
+  const base: Block = {
+    id: uid(),
+    kind,
+    text: "",
+    ai_enabled: false,
+    ai_tone: "",
+    quick_reply_label: "Quero o link",
+    link_url: "",
+    link_button_label: "Acessar",
+    delay_minutes: 60,
+  };
+  if (kind === "publicReply") base.text = "Te mandei no privado! 📩";
+  if (kind === "dm") base.text = "Oi! Toque no botão abaixo pra continuar 👇";
+  if (kind === "text") base.text = "Ainda dá tempo 😉";
+  if (kind === "button") {
+    base.text = "Aqui está 👇";
+    base.delay_minutes = 1;
+  }
+  return base;
+}
+
+const BLOCK_META: Record<BlockKind, { icon: string; title: string }> = {
+  publicReply: { icon: "💬", title: "Resposta pública" },
+  dm: { icon: "✉️", title: "Enviar mensagem" },
+  text: { icon: "💌", title: "Mensagem de texto" },
+  button: { icon: "🔗", title: "Mensagem com botão" },
+};
 
 const YSTEP = 160;
 
@@ -77,32 +97,7 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
     match_type: "contains",
     target_media_id: "",
   });
-  const [publicReply, setPublicReply] = useState<ReplyData>({
-    enabled: true,
-    ai_enabled: false,
-    ai_tone: "",
-    text: "Te mandei no privado! 📩",
-  });
-  const [dm, setDm] = useState<DmData>({
-    ai_enabled: false,
-    ai_tone: "",
-    text: "Oi! Toque no botão abaixo pra continuar 👇",
-    quick_reply_label: "Quero o link",
-  });
-  const [steps, setSteps] = useState<StepBlock[]>(
-    automationId
-      ? []
-      : [
-          {
-            id: uid(),
-            kind: "button",
-            message_text: "Aqui está o link 👇",
-            link_url: "",
-            link_button_label: "Acessar",
-            delay_minutes: 1,
-          },
-        ]
-  );
+  const [blocks, setBlocks] = useState<Block[]>([]);
 
   const [editing, setEditing] = useState<string | null>(null);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
@@ -137,61 +132,66 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
         match_type: a.match_type ?? "contains",
         target_media_id: a.target_media_id ?? "",
       });
-      setPublicReply({
-        enabled: Boolean(a.public_replies?.length) || Boolean(a.ai_enabled),
-        ai_enabled: a.ai_enabled ?? false,
-        ai_tone: a.ai_tone ?? "",
-        text: a.public_replies?.[0] ?? "",
-      });
-      setDm({
-        ai_enabled: a.ai_enabled ?? false,
-        ai_tone: a.ai_tone ?? "",
-        text: a.welcome_dm_text ?? "",
-        quick_reply_label: a.quick_reply_label ?? "",
-      });
 
-      const builtInSteps: StepBlock[] = [];
+      const loaded: Block[] = [];
+
+      if (a.ai_enabled) {
+        loaded.push({ ...newBlock("publicReply"), ai_enabled: true, ai_tone: a.ai_tone ?? "" });
+      } else {
+        for (const text of a.public_replies ?? []) {
+          loaded.push({ ...newBlock("publicReply"), text });
+        }
+      }
+
+      if (a.welcome_dm_text || a.quick_reply_label || a.ai_enabled) {
+        loaded.push({
+          ...newBlock("dm"),
+          text: a.welcome_dm_text ?? "",
+          quick_reply_label: a.quick_reply_label ?? "",
+          ai_enabled: a.ai_enabled ?? false,
+          ai_tone: a.ai_tone ?? "",
+        });
+      }
+
       if (a.link_url) {
-        builtInSteps.push({
-          id: uid(),
-          kind: "button",
-          message_text: a.link_text ?? "Aqui está o link 👇",
+        loaded.push({
+          ...newBlock("button"),
+          text: a.link_text ?? "Aqui está o link 👇",
           link_url: a.link_url,
           link_button_label: a.link_button_label ?? "Acessar",
           delay_minutes: 1,
         });
       }
       if (a.reminder_text) {
-        builtInSteps.push({
-          id: uid(),
-          kind: "text",
-          message_text: a.reminder_text,
-          link_url: "",
-          link_button_label: "",
+        loaded.push({
+          ...newBlock("text"),
+          text: a.reminder_text,
           delay_minutes: a.reminder_delay_minutes ?? 60,
         });
       }
-      const extraSteps: StepBlock[] = (followupsJson.data ?? []).map((f: any) => ({
-        id: uid(),
-        kind: f.link_url ? "button" : "text",
-        message_text: f.message_text ?? "",
-        link_url: f.link_url ?? "",
-        link_button_label: f.link_button_label ?? "Acessar",
-        delay_minutes: f.delay_minutes ?? 60,
-      }));
+      for (const f of followupsJson.data ?? []) {
+        loaded.push({
+          ...newBlock(f.link_url ? "button" : "text"),
+          text: f.message_text ?? "",
+          link_url: f.link_url ?? "",
+          link_button_label: f.link_button_label ?? "Acessar",
+          delay_minutes: f.delay_minutes ?? 60,
+        });
+      }
 
-      setSteps([...builtInSteps, ...extraSteps]);
+      setBlocks(loaded);
       setReady(true);
     });
   }, [automationId]);
 
-  // monta o canvas UMA vez (quando os dados já estiverem prontos), com o
-  // layout inicial — posição livre depois disso
+  // monta o canvas UMA vez (quando os dados já estiverem prontos) — nova
+  // automação nasce só com o bloco "Quando...", edição carrega tudo já
+  // encadeado; depois disso a posição/ligação é livre
   useEffect(() => {
     if (!ready || initialized.current) return;
     initialized.current = true;
 
-    const ids = ["trigger", "publicReply", "dm", ...steps.map((s) => s.id)];
+    const ids = ["trigger", ...blocks.map((b) => b.id)];
     const initialNodes: Node[] = ids.map((id, i) => ({
       id,
       type: "block",
@@ -212,16 +212,9 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
-  function addStep(kind: "text" | "button") {
-    const newStep: StepBlock = {
-      id: uid(),
-      kind,
-      message_text: kind === "text" ? "Ainda dá tempo 😉" : "Aqui está 👇",
-      link_url: "",
-      link_button_label: "Acessar",
-      delay_minutes: 60,
-    };
-    setSteps((prev) => [...prev, newStep]);
+  function addBlock(kind: BlockKind) {
+    const block = newBlock(kind);
+    setBlocks((prev) => [...prev, block]);
     setAddMenuOpen(false);
 
     // solta o bloco solto no canvas, sem ligar em nada — conecta na mão
@@ -231,25 +224,21 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
       const row = Math.floor(count / 3);
       return [
         ...nds,
-        {
-          id: newStep.id,
-          type: "block",
-          position: { x: 420 + col * 300, y: 40 + row * YSTEP },
-          data: {},
-        },
+        { id: block.id, type: "block", position: { x: 420 + col * 300, y: 40 + row * YSTEP }, data: {} },
       ];
     });
+    setEditing(block.id);
   }
 
-  function removeStep(id: string) {
-    setSteps((prev) => prev.filter((s) => s.id !== id));
+  function removeBlock(id: string) {
+    setBlocks((prev) => prev.filter((b) => b.id !== id));
     setNodes((nds) => nds.filter((n) => n.id !== id));
     setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
     if (editing === id) setEditing(null);
   }
 
-  function updateStep(id: string, patch: Partial<StepBlock>) {
-    setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  function updateBlock(id: string, patch: Partial<Block>) {
+    setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
   }
 
   const onConnect = useCallback(
@@ -277,41 +266,30 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
         preview: triggerLabel,
         onClick: () => setEditing("trigger"),
       },
-      publicReply: {
-        title: "Resposta pública",
-        icon: "💬",
-        preview: !publicReply.enabled
-          ? "desativada"
-          : publicReply.ai_enabled
-          ? "gerada por IA"
-          : publicReply.text,
-        muted: !publicReply.enabled,
-        onClick: () => setEditing("publicReply"),
-      },
-      dm: {
-        title: "Enviar mensagem",
-        icon: "✉️",
-        preview: dm.ai_enabled ? "gerada por IA" : dm.text,
-        footer: `botão: ${dm.quick_reply_label}`,
-        onClick: () => setEditing("dm"),
-      },
     };
-    steps.forEach((step) => {
-      dataById[step.id] = {
-        title: step.kind === "button" ? "Enviar mensagem com botão" : "Enviar mensagem",
-        icon: step.kind === "button" ? "🔗" : "💌",
-        preview: step.message_text,
-        footer: `${step.delay_minutes} min depois${
-          step.kind === "button" && step.link_url ? ` · ${step.link_button_label}` : ""
-        }`,
-        onClick: () => setEditing(step.id),
-        onRemove: () => removeStep(step.id),
+
+    blocks.forEach((block) => {
+      const meta = BLOCK_META[block.kind];
+      const footerParts: string[] = [];
+      if (block.kind === "dm") footerParts.push(`botão: ${block.quick_reply_label}`);
+      if (block.kind === "text" || block.kind === "button") {
+        footerParts.push(`${block.delay_minutes} min depois`);
+      }
+      if (block.kind === "button" && block.link_url) footerParts.push(block.link_button_label);
+
+      dataById[block.id] = {
+        title: meta.title,
+        icon: meta.icon,
+        preview: block.ai_enabled ? "gerada por IA" : block.text || "sem texto",
+        footer: footerParts.join(" · "),
+        onClick: () => setEditing(block.id),
+        onRemove: () => removeBlock(block.id),
       };
     });
 
     setNodes((nds) => nds.map((n) => (dataById[n.id] ? { ...n, data: dataById[n.id] } : n)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trigger, publicReply, dm, steps, addMenuOpen, media]);
+  }, [trigger, blocks, media]);
 
   async function handleSubmit() {
     if (!name.trim()) {
@@ -319,6 +297,13 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
       return;
     }
     setSaving(true);
+
+    const publicReplyBlocks = blocks.filter((b) => b.kind === "publicReply");
+    const dmBlock = blocks.find((b) => b.kind === "dm");
+    const stepBlocks = blocks.filter((b) => b.kind === "text" || b.kind === "button");
+
+    const aiEnabled = publicReplyBlocks.some((b) => b.ai_enabled) || Boolean(dmBlock?.ai_enabled);
+    const aiTone = publicReplyBlocks.find((b) => b.ai_tone)?.ai_tone || dmBlock?.ai_tone || "";
 
     const payload: Record<string, unknown> = {
       name,
@@ -328,22 +313,20 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
       keywords: trigger.keywords.split(",").map((k) => k.trim()).filter(Boolean),
       match_type: trigger.match_type,
       target_media_id: trigger.target_media_id || null,
-      public_replies: publicReply.enabled && !publicReply.ai_enabled ? [publicReply.text] : [],
-      welcome_dm_text: dm.text,
-      quick_reply_label: dm.quick_reply_label,
-      ai_enabled: dm.ai_enabled || publicReply.ai_enabled,
-      ai_tone: dm.ai_tone || publicReply.ai_tone,
-      // o link/lembrete "antigos" agora sempre viram passos da sequência,
-      // pra não duplicar envio quando a automação já tinha eles
+      public_replies: publicReplyBlocks.filter((b) => !b.ai_enabled).map((b) => b.text),
+      welcome_dm_text: dmBlock?.text ?? "",
+      quick_reply_label: dmBlock?.quick_reply_label ?? "",
+      ai_enabled: aiEnabled,
+      ai_tone: aiTone,
       link_url: null,
       link_text: null,
       link_button_label: null,
       reminder_text: null,
-      steps: steps.map((s) => ({
-        message_text: s.message_text,
-        link_url: s.kind === "button" ? s.link_url : null,
-        link_button_label: s.kind === "button" ? s.link_button_label : null,
-        delay_minutes: s.delay_minutes,
+      steps: stepBlocks.map((b) => ({
+        message_text: b.text,
+        link_url: b.kind === "button" ? b.link_url : null,
+        link_button_label: b.kind === "button" ? b.link_button_label : null,
+        delay_minutes: b.delay_minutes,
       })),
     };
 
@@ -367,6 +350,8 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
   if (!ready) {
     return <p className="text-sm text-[var(--ink-faint)]">Carregando...</p>;
   }
+
+  const editingBlock = blocks.find((b) => b.id === editing);
 
   return (
     <div>
@@ -406,18 +391,15 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
         <div className="absolute bottom-5 right-5 z-10">
           {addMenuOpen && (
             <div className="card p-1.5 w-56 shadow-lg mb-2">
-              <button
-                onClick={() => addStep("text")}
-                className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-[var(--paper)] text-[var(--ink)]"
-              >
-                💌 Mensagem de texto
-              </button>
-              <button
-                onClick={() => addStep("button")}
-                className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-[var(--paper)] text-[var(--ink)]"
-              >
-                🔗 Mensagem com botão
-              </button>
+              {(Object.keys(BLOCK_META) as BlockKind[]).map((kind) => (
+                <button
+                  key={kind}
+                  onClick={() => addBlock(kind)}
+                  className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-[var(--paper)] text-[var(--ink)]"
+                >
+                  {BLOCK_META[kind].icon} {BLOCK_META[kind].title}
+                </button>
+              ))}
             </div>
           )}
           <button
@@ -486,82 +468,72 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
         </EditModal>
       )}
 
-      {editing === "publicReply" && (
-        <EditModal title="💬 Resposta pública" onClose={() => setEditing(null)}>
-          <label className="flex items-center gap-2 text-sm mb-3">
-            <input type="checkbox" checked={publicReply.enabled} onChange={(e) => setPublicReply((p) => ({ ...p, enabled: e.target.checked }))} />
-            Responder publicamente no comentário
-          </label>
-          {publicReply.enabled && (
-            <>
-              <AiToggle
-                aiEnabled={publicReply.ai_enabled}
-                tone={publicReply.ai_tone}
-                onAiChange={(v) => setPublicReply((p) => ({ ...p, ai_enabled: v }))}
-                onToneChange={(v) => setPublicReply((p) => ({ ...p, ai_tone: v }))}
-              />
-              {!publicReply.ai_enabled && (
-                <Field label="Texto">
-                  <textarea value={publicReply.text} onChange={(e) => setPublicReply((p) => ({ ...p, text: e.target.value }))} className="input" rows={3} />
-                </Field>
-              )}
-            </>
+      {editingBlock && (
+        <EditModal
+          title={`${BLOCK_META[editingBlock.kind].icon} ${BLOCK_META[editingBlock.kind].title}`}
+          onClose={() => setEditing(null)}
+          onDelete={() => removeBlock(editingBlock.id)}
+        >
+          {(editingBlock.kind === "publicReply" || editingBlock.kind === "dm") && (
+            <AiToggle
+              aiEnabled={editingBlock.ai_enabled}
+              tone={editingBlock.ai_tone}
+              onAiChange={(v) => updateBlock(editingBlock.id, { ai_enabled: v })}
+              onToneChange={(v) => updateBlock(editingBlock.id, { ai_tone: v })}
+            />
           )}
-        </EditModal>
-      )}
-
-      {editing === "dm" && (
-        <EditModal title="✉️ Enviar mensagem" onClose={() => setEditing(null)}>
-          <AiToggle
-            aiEnabled={dm.ai_enabled}
-            tone={dm.ai_tone}
-            onAiChange={(v) => setDm((d) => ({ ...d, ai_enabled: v }))}
-            onToneChange={(v) => setDm((d) => ({ ...d, ai_tone: v }))}
-          />
-          {!dm.ai_enabled && (
+          {!editingBlock.ai_enabled && (
             <Field label="Texto">
-              <textarea required value={dm.text} onChange={(e) => setDm((d) => ({ ...d, text: e.target.value }))} className="input" rows={3} />
+              <textarea
+                value={editingBlock.text}
+                onChange={(e) => updateBlock(editingBlock.id, { text: e.target.value })}
+                className="input"
+                rows={3}
+              />
             </Field>
           )}
-          <Field label="Texto do botão de resposta rápida">
-            <input required value={dm.quick_reply_label} onChange={(e) => setDm((d) => ({ ...d, quick_reply_label: e.target.value }))} className="input" />
-          </Field>
-        </EditModal>
-      )}
-
-      {steps.map(
-        (step) =>
-          editing === step.id && (
-            <EditModal
-              key={step.id}
-              title={step.kind === "button" ? "🔗 Mensagem com botão" : "💌 Mensagem de texto"}
-              onClose={() => setEditing(null)}
-              onDelete={() => removeStep(step.id)}
-            >
-              <Field label="Texto">
-                <textarea value={step.message_text} onChange={(e) => updateStep(step.id, { message_text: e.target.value })} className="input" rows={3} />
-              </Field>
-              {step.kind === "button" && (
-                <>
-                  <Field label="URL do botão">
-                    <input type="url" value={step.link_url} onChange={(e) => updateStep(step.id, { link_url: e.target.value })} className="input" placeholder="https://..." />
-                  </Field>
-                  <Field label="Rótulo do botão">
-                    <input value={step.link_button_label} onChange={(e) => updateStep(step.id, { link_button_label: e.target.value })} className="input" />
-                  </Field>
-                </>
-              )}
-              <Field label="Atraso (minutos, a partir de quando a pessoa abre a conversa)">
+          {editingBlock.kind === "dm" && (
+            <Field label="Texto do botão de resposta rápida">
+              <input
+                required
+                value={editingBlock.quick_reply_label}
+                onChange={(e) => updateBlock(editingBlock.id, { quick_reply_label: e.target.value })}
+                className="input"
+              />
+            </Field>
+          )}
+          {editingBlock.kind === "button" && (
+            <>
+              <Field label="URL do botão">
                 <input
-                  type="number"
-                  min={1}
-                  value={step.delay_minutes}
-                  onChange={(e) => updateStep(step.id, { delay_minutes: Number(e.target.value) })}
+                  type="url"
+                  value={editingBlock.link_url}
+                  onChange={(e) => updateBlock(editingBlock.id, { link_url: e.target.value })}
+                  className="input"
+                  placeholder="https://..."
+                />
+              </Field>
+              <Field label="Rótulo do botão">
+                <input
+                  value={editingBlock.link_button_label}
+                  onChange={(e) => updateBlock(editingBlock.id, { link_button_label: e.target.value })}
                   className="input"
                 />
               </Field>
-            </EditModal>
-          )
+            </>
+          )}
+          {(editingBlock.kind === "text" || editingBlock.kind === "button") && (
+            <Field label="Atraso (minutos, a partir de quando a pessoa abre a conversa)">
+              <input
+                type="number"
+                min={1}
+                value={editingBlock.delay_minutes}
+                onChange={(e) => updateBlock(editingBlock.id, { delay_minutes: Number(e.target.value) })}
+                className="input"
+              />
+            </Field>
+          )}
+        </EditModal>
       )}
     </div>
   );
