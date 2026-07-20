@@ -155,29 +155,38 @@ export default function NovaAutomacaoPage() {
           ) : media.length === 0 ? (
             <p className="text-sm text-[var(--ink-faint)]">Nenhum post encontrado.</p>
           ) : (
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-4 gap-3">
               <button
                 type="button"
                 onClick={() => update("target_media_id", "")}
-                className={`aspect-square rounded-lg border-2 flex items-center justify-center text-xs text-center p-2 ${
-                  form.target_media_id === "" ? "border-[var(--indigo)]" : "border-[var(--border)]"
+                className={`relative aspect-square rounded-lg flex items-center justify-center text-xs text-center p-2 transition-all ${
+                  form.target_media_id === ""
+                    ? "ring-2 ring-offset-2 ring-[var(--signal)] bg-[var(--signal-soft)] text-[var(--signal-ink)] font-medium"
+                    : "border border-[var(--border)] text-[var(--ink-faint)] opacity-70 hover:opacity-100"
                 }`}
               >
                 Todos os posts
+                {form.target_media_id === "" && <SelectedBadge />}
               </button>
-              {media.map((m) => (
-                <button
-                  type="button"
-                  key={m.id}
-                  onClick={() => update("target_media_id", m.id)}
-                  className={`aspect-square rounded-lg border-2 overflow-hidden ${
-                    form.target_media_id === m.id ? "border-[var(--indigo)]" : "border-[var(--border)]"
-                  }`}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={m.thumbnail_url || m.media_url} alt="" className="w-full h-full object-cover" />
-                </button>
-              ))}
+              {media.map((m) => {
+                const selected = form.target_media_id === m.id;
+                return (
+                  <button
+                    type="button"
+                    key={m.id}
+                    onClick={() => update("target_media_id", m.id)}
+                    className={`relative aspect-square rounded-lg overflow-hidden transition-all ${
+                      selected
+                        ? "ring-2 ring-offset-2 ring-[var(--signal)]"
+                        : "border border-[var(--border)] opacity-60 hover:opacity-100"
+                    }`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={m.thumbnail_url || m.media_url} alt="" className="w-full h-full object-cover" />
+                    {selected && <SelectedBadge />}
+                  </button>
+                );
+              })}
             </div>
           )}
         </Field>
@@ -277,5 +286,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="block text-sm font-medium text-[var(--ink-soft)] mb-1.5">{label}</span>
       {children}
     </label>
+  );
+}
+
+function SelectedBadge() {
+  return (
+    <span className="absolute top-1 right-1 w-5 h-5 rounded-full bg-[var(--signal)] text-white flex items-center justify-center shadow">
+      <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+        <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </span>
   );
 }
