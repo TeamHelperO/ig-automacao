@@ -50,6 +50,37 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
+/**
+ * Segue de verdade as linhas que a pessoa desenhou no canvas, a partir
+ * do bloco "Quando...", pra descobrir a ordem real da automação. Blocos
+ * soltos (sem linha ligando no fluxo) ficam de fora do salvamento —
+ * eles ainda são "rascunho" até serem conectados.
+ */
+function getConnectedOrder(edges: Edge[], blocks: Block[]): Block[] {
+  const bySource: Record<string, string[]> = {};
+  edges.forEach((e) => {
+    (bySource[e.source] ||= []).push(e.target);
+  });
+
+  const visited = new Set<string>();
+  const order: string[] = [];
+  const queue = ["trigger"];
+
+  while (queue.length) {
+    const current = queue.shift()!;
+    for (const child of bySource[current] ?? []) {
+      if (!visited.has(child)) {
+        visited.add(child);
+        order.push(child);
+        queue.push(child);
+      }
+    }
+  }
+
+  const byId = new Map(blocks.map((b) => [b.id, b]));
+  return order.map((id) => byId.get(id)).filter((b): b is Block => Boolean(b));
+}
+
 function newBlock(kind: BlockKind): Block {
   const base: Block = {
     id: uid(),
@@ -268,6 +299,8 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
       },
     };
 
+    const connectedIds = new Set(getConnectedOrder(edges, blocks).map((b) => b.id));
+
     blocks.forEach((block) => {
       const meta = BLOCK_META[block.kind];
       const footerParts: string[] = [];
@@ -281,7 +314,10 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
         title: meta.title,
         icon: meta.icon,
         preview: block.ai_enabled ? "gerada por IA" : block.text || "sem texto",
-        footer: footerParts.join(" · "),
+        footer: connectedIds.has(block.id)
+          ? footerParts.join(" · ")
+          : "⚠ não conectado — não vai ser salvo",
+        muted: !connectedIds.has(block.id),
         onClick: () => setEditing(block.id),
         onRemove: () => removeBlock(block.id),
       };
@@ -289,18 +325,28 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
 
     setNodes((nds) => nds.map((n) => (dataById[n.id] ? { ...n, data: dataById[n.id] } : n)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trigger, blocks, media]);
+  }, [trigger, blocks, media, edges]);
 
   async function handleSubmit() {
     if (!name.trim()) {
       alert("Dá um nome pra automação primeiro.");
       return;
     }
+
+    const orderedBlocks = getConnectedOrder(edges, blocks);
+    const unconnectedCount = blocks.length - orderedBlocks.length;
+    if (unconnectedCount > 0) {
+      const proceed = confirm(
+        `${unconnectedCount} bloco(s) ainda não estão conectados ao fluxo (a partir do "Quando..."). Eles não vão ser salvos. Quer continuar mesmo assim?`
+      );
+      if (!proceed) return;
+    }
+
     setSaving(true);
 
-    const publicReplyBlocks = blocks.filter((b) => b.kind === "publicReply");
-    const dmBlock = blocks.find((b) => b.kind === "dm");
-    const stepBlocks = blocks.filter((b) => b.kind === "text" || b.kind === "button");
+    const publicReplyBlocks = orderedBlocks.filter((b) => b.kind === "publicReply");
+    const dmBlock = orderedBlocks.find((b) => b.kind === "dm");
+    const stepBlocks = orderedBlocks.filter((b) => b.kind === "text" || b.kind === "button");
 
     const aiEnabled = publicReplyBlocks.some((b) => b.ai_enabled) || Boolean(dmBlock?.ai_enabled);
     const aiTone = publicReplyBlocks.find((b) => b.ai_tone)?.ai_tone || dmBlock?.ai_tone || "";
