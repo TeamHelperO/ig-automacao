@@ -22,6 +22,8 @@ export async function POST(req: NextRequest) {
       name: body.name,
       price_cents: body.price_cents ?? 0,
       max_ig_accounts: body.max_ig_accounts ?? 1,
+      trial_days: body.trial_days ?? null,
+      max_messages_per_month: body.max_messages_per_month ?? null,
       active: body.active ?? true,
     })
     .select("*")

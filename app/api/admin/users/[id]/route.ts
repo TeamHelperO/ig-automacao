@@ -13,7 +13,10 @@ export async function PATCH(
   const body = await req.json();
 
   const update: Record<string, unknown> = {};
-  if (body.plan_id !== undefined) update.plan_id = body.plan_id;
+  if (body.plan_id !== undefined) {
+    update.plan_id = body.plan_id;
+    update.plan_started_at = new Date().toISOString();
+  }
   if (body.is_super_admin !== undefined) update.is_super_admin = body.is_super_admin;
 
   const { data, error } = await supabaseAdmin

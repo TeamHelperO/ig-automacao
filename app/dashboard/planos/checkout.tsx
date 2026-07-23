@@ -45,26 +45,33 @@ export default function Checkout({
 
   return (
     <div className="w-full max-w-sm">
+      <p className="text-xs text-[var(--ink-faint)] mb-2">
+        Cobrança recorrente mensal — cancele quando quiser em Faturamento.
+      </p>
       <CardPayment
         initialization={{ amount: priceCents / 100 }}
-        customization={{ paymentMethods: { minInstallments: 1, maxInstallments: 3 } }}
+        customization={{ paymentMethods: { minInstallments: 1, maxInstallments: 1 } }}
         onSubmit={async (formData) => {
-          setMessage("Processando pagamento...");
+          setMessage("Ativando assinatura...");
           try {
-            const res = await fetch("/api/mercadopago/create-payment", {
+            const res = await fetch("/api/mercadopago/create-subscription", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ...formData, plan_id: planId }),
+              body: JSON.stringify({
+                token: formData.token,
+                payer: formData.payer,
+                plan_id: planId,
+              }),
             });
             const json = await res.json();
 
-            if (json.status === "approved") {
-              setMessage("Pagamento aprovado! Atualizando seu plano...");
+            if (json.status === "authorized") {
+              setMessage("Assinatura ativada! Atualizando seu plano...");
               router.refresh();
             } else if (json.status === "pending") {
-              setMessage("Pagamento em análise. Assim que aprovar, seu plano muda automaticamente.");
+              setMessage("Assinatura em análise. Assim que aprovar, seu plano muda automaticamente.");
             } else {
-              setMessage("Pagamento recusado. Tenta outro cartão.");
+              setMessage(json.error ?? "Não deu pra ativar. Tenta outro cartão.");
             }
           } catch {
             setMessage("Erro ao processar. Tenta de novo.");

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { buildLoginUrl } from "@/lib/instagram";
 import { getCurrentUser } from "@/lib/supabase-server-auth";
 import { supabaseAdmin } from "@/lib/supabase";
+import { isTrialExpired } from "@/lib/access";
 
 export async function GET() {
   const appUrl = process.env.APP_URL!;
@@ -9,6 +10,14 @@ export async function GET() {
 
   if (!current) {
     return NextResponse.redirect(`${appUrl}/login`);
+  }
+
+  if (current.profile && isTrialExpired(current.profile as any)) {
+    return NextResponse.redirect(
+      `${appUrl}/dashboard?erro=${encodeURIComponent(
+        "Seu período grátis acabou. Assine um plano pra continuar."
+      )}`
+    );
   }
 
   const maxAccounts = current.profile?.plans?.max_ig_accounts ?? 1;

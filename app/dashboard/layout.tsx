@@ -53,6 +53,7 @@ export default async function DashboardLayout({
               )}
             </div>
             <DropdownItem href="/dashboard/conta">Minha conta</DropdownItem>
+            <DropdownItem href="/dashboard/faturamento">Faturamento</DropdownItem>
             <LogoutMenuItem />
           </DropdownMenu>
         </div>

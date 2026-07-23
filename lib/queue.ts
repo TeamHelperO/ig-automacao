@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "./supabase";
 import { sendMessage, replyToComment } from "./instagram";
+import { canAccountSend } from "./access";
 
 const MAX_PER_BATCH = 60;
 const SEND_INTERVAL_MS = 500; // ~2 mensagens por segundo
@@ -65,9 +66,11 @@ export async function drainQueue() {
 
   const accountById = new Map((accounts ?? []).map((a) => [a.id, a]));
   const budgetByAccount = new Map<string, number>();
+  const accessByAccount = new Map<string, { ok: boolean; reason?: string }>();
   for (const accountId of accountIds) {
     const sentLastHour = await countSentLastHour(accountId);
     budgetByAccount.set(accountId, Math.max(0, HOURLY_CAP_PER_ACCOUNT - sentLastHour));
+    accessByAccount.set(accountId, await canAccountSend(accountId));
   }
 
   let sent = 0;
@@ -83,6 +86,16 @@ export async function drainQueue() {
         .update({ status: "failed", error: "conta não conectada" })
         .eq("id", item.id);
       failed++;
+      continue;
+    }
+
+    const access = accessByAccount.get(item.account_id);
+    if (access && !access.ok) {
+      await supabaseAdmin
+        .from("queue")
+        .update({ status: "skipped", error: access.reason ?? "bloqueado pelo plano" })
+        .eq("id", item.id);
+      skipped++;
       continue;
     }
 
