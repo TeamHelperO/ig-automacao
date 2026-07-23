@@ -42,8 +42,13 @@ export default function CollaboratorsManager({
   }
 
   async function remove(id: string) {
+    const previous = collaborators;
     setCollaborators((prev) => prev.filter((c) => c.id !== id));
-    await fetch(`/api/accounts/${accountId}/collaborators/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/accounts/${accountId}/collaborators/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      setCollaborators(previous);
+      alert("Não deu pra remover esse colaborador.");
+    }
   }
 
   return (

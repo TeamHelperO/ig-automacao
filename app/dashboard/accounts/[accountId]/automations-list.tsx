@@ -33,8 +33,14 @@ export default function AutomationsList({
 
   async function remove(id: string) {
     if (!confirm("Excluir esta automação?")) return;
+    const previous = automations;
     setAutomations((prev) => prev.filter((a) => a.id !== id));
-    await fetch(`/api/automations/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/automations/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      setAutomations(previous);
+      const json = await res.json().catch(() => ({}));
+      alert(json.error ?? "Não deu pra excluir essa automação.");
+    }
   }
 
   function triggersLabel(a: Automation) {
