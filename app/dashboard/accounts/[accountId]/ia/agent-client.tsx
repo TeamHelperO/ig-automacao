@@ -1,0 +1,163 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+
+type KnowledgeChunk = {
+  id: string;
+  title: string | null;
+  content: string;
+  created_at: string;
+};
+
+export default function AgentClient() {
+  const params = useParams<{ accountId: string }>();
+  const [enabled, setEnabled] = useState(false);
+  const [systemPrompt, setSystemPrompt] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
+
+  const [chunks, setChunks] = useState<KnowledgeChunk[]>([]);
+  const [newTitle, setNewTitle] = useState("");
+  const [newContent, setNewContent] = useState("");
+  const [addingKnowledge, setAddingKnowledge] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/accounts/${params.accountId}/ai-agent`)
+      .then((r) => r.json())
+      .then((json) => {
+        setEnabled(json.data?.enabled ?? false);
+        setSystemPrompt(json.data?.system_prompt ?? "");
+      })
+      .finally(() => setLoading(false));
+
+    loadKnowledge();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.accountId]);
+
+  function loadKnowledge() {
+    fetch(`/api/accounts/${params.accountId}/knowledge`)
+      .then((r) => r.json())
+      .then((json) => setChunks(json.data ?? []));
+  }
+
+  async function saveAgent() {
+    setSaving(true);
+    setSaveMsg("");
+    const res = await fetch(`/api/accounts/${params.accountId}/ai-agent`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled, system_prompt: systemPrompt }),
+    });
+    setSaving(false);
+    setSaveMsg(res.ok ? "Salvo." : "Erro ao salvar.");
+  }
+
+  async function addKnowledge(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newContent.trim()) return;
+    setAddingKnowledge(true);
+    const res = await fetch(`/api/accounts/${params.accountId}/knowledge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: newTitle, content: newContent }),
+    });
+    setAddingKnowledge(false);
+    if (res.ok) {
+      setNewTitle("");
+      setNewContent("");
+      loadKnowledge();
+    } else {
+      const json = await res.json();
+      alert(json.error ?? "Erro ao adicionar.");
+    }
+  }
+
+  async function removeChunk(id: string) {
+    const previous = chunks;
+    setChunks((prev) => prev.filter((c) => c.id !== id));
+    const res = await fetch(`/api/accounts/${params.accountId}/knowledge/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) setChunks(previous);
+  }
+
+  if (loading) return <p className="text-sm text-[var(--ink-faint)]">Carregando...</p>;
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-sm font-medium text-[var(--ink)]">Agente de atendimento</p>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+            Ativo
+          </label>
+        </div>
+        <p className="text-xs text-[var(--ink-faint)] mb-3 leading-relaxed">
+          Esse agente só responde quando a mensagem de alguém <strong>não bate com nenhuma
+          automação</strong> configurada — ele nunca compete com o que você já montou no
+          construtor de fluxo, só cobre o resto da conversa. Escreva abaixo como ele deve se
+          comportar: quem ele representa, o tom de voz, o que pode e não pode prometer.
+        </p>
+        <textarea
+          value={systemPrompt}
+          onChange={(e) => setSystemPrompt(e.target.value)}
+          className="input mb-3"
+          rows={6}
+          placeholder={
+            "Ex: Você é a atendente virtual da Clínica X. Seja educada, breve, e use as informações da base de conhecimento pra responder dúvidas sobre horários, preços e serviços. Nunca invente informação que não esteja na base."
+          }
+        />
+        <div className="flex items-center gap-3">
+          <button onClick={saveAgent} disabled={saving} className="btn btn-primary">
+            {saving ? "Salvando..." : "Salvar"}
+          </button>
+          {saveMsg && <p className="text-xs text-[var(--ink-faint)]">{saveMsg}</p>}
+        </div>
+      </div>
+
+      <div>
+        <p className="text-sm font-medium text-[var(--ink)] mb-3">Base de conhecimento</p>
+        {chunks.length === 0 ? (
+          <p className="text-sm text-[var(--ink-faint)] mb-4">Nada cadastrado ainda.</p>
+        ) : (
+          <ul className="space-y-2 mb-4">
+            {chunks.map((c) => (
+              <li key={c.id} className="card p-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  {c.title && <p className="text-xs font-medium text-[var(--ink-soft)] mb-0.5">{c.title}</p>}
+                  <p className="text-sm text-[var(--ink)] line-clamp-2">{c.content}</p>
+                </div>
+                <button onClick={() => removeChunk(c.id)} className="btn-danger-text text-xs shrink-0">
+                  Excluir
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <form onSubmit={addKnowledge} className="card p-4 space-y-3">
+          <p className="text-sm font-medium text-[var(--ink)]">Adicionar informação</p>
+          <input
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            className="input"
+            placeholder="Título (opcional, ex: Horário de funcionamento)"
+          />
+          <textarea
+            value={newContent}
+            onChange={(e) => setNewContent(e.target.value)}
+            className="input"
+            rows={5}
+            placeholder="Cola aqui o texto — preços, horários, políticas, perguntas frequentes, o que for. Pode colar um texto grande, o sistema separa em pedaços sozinho."
+          />
+          <button type="submit" disabled={addingKnowledge} className="btn btn-primary">
+            {addingKnowledge ? "Adicionando..." : "Adicionar"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}

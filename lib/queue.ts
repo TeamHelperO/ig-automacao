@@ -163,7 +163,7 @@ export async function drainQueue() {
           contact_id: item.contact_id,
           direction: "outbound",
           text,
-          source: "automation",
+          source: item.automation_id ? "automation" : "ai",
         });
       }
 

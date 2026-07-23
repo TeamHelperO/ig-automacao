@@ -4,7 +4,7 @@ import { verifyMetaSignature } from "@/lib/verify-signature";
 import { supabaseAdmin } from "@/lib/supabase";
 import { enqueue, drainQueue } from "@/lib/queue";
 import { createTrackedLink, trackedLinkUrl } from "@/lib/shortlink";
-import { generateAIReply } from "@/lib/ai";
+import { generateAIReply, generateAgentReply } from "@/lib/ai";
 
 // ---------------------------------------------------------
 // GET: handshake de verificação do webhook
@@ -229,6 +229,7 @@ async function handleMessaging(account: any, messaging: any) {
   if (!text) return;
 
   const automations = await getActiveAutomations(account.id);
+  let matched = false;
   for (const automation of automations) {
     const triggerOk = isStoryReply ? automation.trigger_story_reply : automation.trigger_dm;
     if (!triggerOk) continue;
@@ -248,8 +249,52 @@ async function handleMessaging(account: any, messaging: any) {
       .update({ last_automation_id: automation.id })
       .eq("id", contact.id);
 
+    matched = true;
     break;
   }
+
+  // ninguém das automações bateu com essa mensagem -> se tiver um agente
+  // de IA ligado nessa conta, ele assume a conversa (nunca os dois juntos)
+  if (!matched) {
+    await maybeReplyWithAgent(account, contact, text);
+  }
+}
+
+async function maybeReplyWithAgent(account: any, contact: any, incomingText: string) {
+  const { data: agent } = await supabaseAdmin
+    .from("ai_agents")
+    .select("*")
+    .eq("account_id", account.id)
+    .eq("enabled", true)
+    .maybeSingle();
+
+  if (!agent?.system_prompt) return;
+
+  const { data: history } = await supabaseAdmin
+    .from("messages")
+    .select("direction, text")
+    .eq("account_id", account.id)
+    .eq("contact_id", contact.id)
+    .order("created_at", { ascending: true })
+    .limit(20);
+
+  const reply = await generateAgentReply({
+    accountId: account.id,
+    systemPrompt: agent.system_prompt,
+    history: (history ?? []).map((m: any) => ({ direction: m.direction, text: m.text ?? "" })),
+    incomingText,
+  });
+
+  if (!reply) return;
+
+  await enqueue({
+    accountId: account.id,
+    contactId: contact.id,
+    automationId: null,
+    kind: "dm",
+    recipient: { id: contact.ig_scoped_id },
+    payload: { text: reply },
+  });
 }
 
 async function buildWelcomePayload(automation: any) {
