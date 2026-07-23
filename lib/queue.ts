@@ -152,6 +152,21 @@ export async function drainQueue() {
         .from("queue")
         .update({ status: "sent", sent_at: new Date().toISOString() })
         .eq("id", item.id);
+
+      if (item.kind !== "public_reply") {
+        const text =
+          (payload.text as string | undefined) ??
+          (payload.buttonUrl as { text?: string } | undefined)?.text ??
+          "";
+        await supabaseAdmin.from("messages").insert({
+          account_id: item.account_id,
+          contact_id: item.contact_id,
+          direction: "outbound",
+          text,
+          source: "automation",
+        });
+      }
+
       sent++;
       budgetByAccount.set(item.account_id, remaining - 1);
     } catch (err) {

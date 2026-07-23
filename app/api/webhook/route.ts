@@ -204,12 +204,24 @@ async function handleMessaging(account: any, messaging: any) {
 
   const contact = await upsertContact(account.id, senderId);
 
-  if (quickReplyPayload) {
-    await supabaseAdmin
-      .from("contacts")
-      .update({ last_response_at: new Date().toISOString() })
-      .eq("id", contact.id);
+  // qualquer mensagem da pessoa (não só o toque no botão) abre/renova a
+  // janela de 24h de verdade, e entra no histórico da caixa de entrada
+  await supabaseAdmin
+    .from("contacts")
+    .update({ last_response_at: new Date().toISOString() })
+    .eq("id", contact.id);
 
+  if (text) {
+    await supabaseAdmin.from("messages").insert({
+      account_id: account.id,
+      contact_id: contact.id,
+      direction: "inbound",
+      text,
+      source: "user",
+    });
+  }
+
+  if (quickReplyPayload) {
     await scheduleFollowups(account, contact, quickReplyPayload);
     return;
   }

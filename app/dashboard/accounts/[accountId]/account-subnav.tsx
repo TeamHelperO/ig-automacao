@@ -9,6 +9,7 @@ export default function AccountSubnav({ accountId }: { accountId: string }) {
 
   const tabs = [
     { href: base, label: "Automações", match: (p: string) => p === base || p.includes("/automations") },
+    { href: `${base}/inbox`, label: "Inbox", match: (p: string) => p.includes("/inbox") },
     { href: `${base}/contatos`, label: "Contatos", match: (p: string) => p.includes("/contatos") },
     { href: `${base}/atividade`, label: "Atividade", match: (p: string) => p.includes("/atividade") },
     { href: `${base}/equipe`, label: "Equipe", match: (p: string) => p.includes("/equipe") },
