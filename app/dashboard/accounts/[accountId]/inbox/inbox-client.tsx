@@ -90,7 +90,11 @@ export default function InboxClient() {
   }
 
   return (
-    <div className="grid md:grid-cols-[300px_1fr] gap-4 h-[calc(100vh-260px)] min-h-[500px]">
+    <div>
+      <p className="text-xs text-[var(--ink-faint)] mb-2">
+        💬 comentário (com @) · ✉️ DM direta (só ID, sem @ — limitação da API do Instagram)
+      </p>
+      <div className="grid md:grid-cols-[300px_1fr] gap-4 h-[calc(100vh-300px)] min-h-[500px]">
       {/* lista de conversas */}
       <div className="card overflow-y-auto">
         {loadingList ? (
@@ -110,7 +114,13 @@ export default function InboxClient() {
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium text-[var(--ink)] truncate">
+                    <p className="text-sm font-medium text-[var(--ink)] truncate flex items-center gap-1.5">
+                      <span
+                        title={c.username ? "veio de um comentário" : "veio de DM direta"}
+                        className="text-xs shrink-0"
+                      >
+                        {c.username ? "💬" : "✉️"}
+                      </span>
                       {c.username ? `@${c.username}` : c.ig_scoped_id}
                     </p>
                     {c.window_open && <span className="pill-dot text-[var(--signal)] shrink-0" />}
@@ -135,7 +145,10 @@ export default function InboxClient() {
         ) : (
           <>
             <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
-              <p className="text-sm font-medium text-[var(--ink)]">
+              <p className="text-sm font-medium text-[var(--ink)] flex items-center gap-1.5">
+                <span title={selected.username ? "veio de um comentário" : "veio de DM direta"} className="text-xs">
+                  {selected.username ? "💬" : "✉️"}
+                </span>
                 {selected.username ? `@${selected.username}` : selected.ig_scoped_id}
               </p>
               <span className={`pill ${selected.window_open ? "pill-signal" : "pill-neutral"}`}>
@@ -202,6 +215,7 @@ export default function InboxClient() {
             </form>
           </>
         )}
+      </div>
       </div>
     </div>
   );
