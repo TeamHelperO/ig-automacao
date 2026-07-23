@@ -22,6 +22,8 @@ export default function AgentClient() {
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [addingKnowledge, setAddingKnowledge] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   useEffect(() => {
     fetch(`/api/accounts/${params.accountId}/ai-agent`)
@@ -71,6 +73,31 @@ export default function AgentClient() {
     } else {
       const json = await res.json();
       alert(json.error ?? "Erro ao adicionar.");
+    }
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadError("");
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch(`/api/accounts/${params.accountId}/knowledge/upload`, {
+      method: "POST",
+      body: formData,
+    });
+
+    setUploading(false);
+    e.target.value = "";
+
+    if (res.ok) {
+      loadKnowledge();
+    } else {
+      const json = await res.json();
+      setUploadError(json.error ?? "Erro ao processar o arquivo.");
     }
   }
 
@@ -138,8 +165,26 @@ export default function AgentClient() {
           </ul>
         )}
 
+        <div className="card p-4 mb-3">
+          <p className="text-sm font-medium text-[var(--ink)] mb-2">Enviar arquivo</p>
+          <p className="text-xs text-[var(--ink-faint)] mb-3">
+            PDF, DOCX, XLSX, CSV ou TXT — o texto é extraído e vira base de conhecimento
+            automaticamente. Arquivos .doc antigos (Word 97-2003) não são suportados, salva
+            como .docx.
+          </p>
+          <input
+            type="file"
+            accept=".pdf,.docx,.xlsx,.xls,.csv,.txt,.md"
+            onChange={handleFileUpload}
+            disabled={uploading}
+            className="input"
+          />
+          {uploading && <p className="text-xs text-[var(--ink-faint)] mt-2">Processando arquivo...</p>}
+          {uploadError && <p className="text-xs text-[var(--coral)] mt-2">{uploadError}</p>}
+        </div>
+
         <form onSubmit={addKnowledge} className="card p-4 space-y-3">
-          <p className="text-sm font-medium text-[var(--ink)]">Adicionar informação</p>
+          <p className="text-sm font-medium text-[var(--ink)]">Ou colar texto direto</p>
           <input
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
