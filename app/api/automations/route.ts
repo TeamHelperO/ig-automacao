@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
       message_text: step.message_text ?? null,
       link_url: step.link_url ?? null,
       link_button_label: step.link_button_label ?? null,
+      only_if_not_clicked: step.only_if_not_clicked ?? false,
     }));
     await supabaseAdmin.from("followups").insert(rows);
   }

@@ -119,6 +119,27 @@ export async function drainQueue() {
       continue;
     }
 
+    if ((item.payload as any)?.only_if_not_clicked && item.automation_id) {
+      const { data: clicked } = await supabaseAdmin
+        .from("link_clicks")
+        .select("id")
+        .eq("account_id", item.account_id)
+        .eq("contact_id", item.contact_id)
+        .eq("automation_id", item.automation_id)
+        .not("clicked_at", "is", null)
+        .limit(1)
+        .maybeSingle();
+
+      if (clicked) {
+        await supabaseAdmin
+          .from("queue")
+          .update({ status: "skipped", error: "pessoa já clicou no link, lembrete não é necessário" })
+          .eq("id", item.id);
+        skipped++;
+        continue;
+      }
+    }
+
     try {
       const payload = item.payload as Record<string, unknown>;
 

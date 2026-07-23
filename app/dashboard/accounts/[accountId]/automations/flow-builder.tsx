@@ -35,6 +35,7 @@ type Block = {
   link_url: string; // só usado no kind "button"
   link_button_label: string; // só usado no kind "button"
   delay_minutes: number; // só usado nos kinds "text" e "button"
+  only_if_not_clicked: boolean; // só usado nos kinds "text" e "button"
 };
 
 type TriggerData = {
@@ -92,6 +93,7 @@ function newBlock(kind: BlockKind): Block {
     link_url: "",
     link_button_label: "Acessar",
     delay_minutes: 60,
+    only_if_not_clicked: false,
   };
   if (kind === "publicReply") base.text = "Te mandei no privado! 📩";
   if (kind === "dm") base.text = "Oi! Toque no botão abaixo pra continuar 👇";
@@ -207,6 +209,7 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
           link_url: f.link_url ?? "",
           link_button_label: f.link_button_label ?? "Acessar",
           delay_minutes: f.delay_minutes ?? 60,
+          only_if_not_clicked: f.only_if_not_clicked ?? false,
         });
       }
 
@@ -373,6 +376,7 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
         link_url: b.kind === "button" ? b.link_url : null,
         link_button_label: b.kind === "button" ? b.link_button_label : null,
         delay_minutes: b.delay_minutes,
+        only_if_not_clicked: b.only_if_not_clicked,
       })),
     };
 
@@ -590,6 +594,20 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
                     className="input"
                   />
                 </Field>
+              )}
+              <label className="flex items-center gap-2 text-sm mt-2">
+                <input
+                  type="checkbox"
+                  checked={editingBlock.only_if_not_clicked}
+                  onChange={(e) => updateBlock(editingBlock.id, { only_if_not_clicked: e.target.checked })}
+                />
+                Só enviar se a pessoa ainda não clicou no link
+              </label>
+              {editingBlock.only_if_not_clicked && (
+                <p className="text-xs text-[var(--ink-faint)] mt-1">
+                  Na hora de enviar, o sistema confere se já teve clique registrado nesse
+                  contato pra essa automação. Se já clicou, esse passo é pulado.
+                </p>
               )}
             </div>
           )}

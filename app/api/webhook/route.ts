@@ -393,13 +393,16 @@ async function scheduleFollowups(account: any, contact: any, payload: string) {
       };
     }
 
+    const payload: Record<string, unknown> = buttonUrl ? { buttonUrl } : { text: step.message_text ?? "" };
+    if (step.only_if_not_clicked) payload.only_if_not_clicked = true;
+
     await enqueue({
       accountId: account.id,
       contactId: contact.id,
       automationId: automation.id,
       kind: "reminder",
       recipient: { id: contact.ig_scoped_id },
-      payload: buttonUrl ? { buttonUrl } : { text: step.message_text ?? "" },
+      payload,
       sendAfter: new Date(Date.now() + delayMs),
       windowExpiresAt: new Date(Date.now() + delayMs + 24 * 60 * 60 * 1000),
     });
