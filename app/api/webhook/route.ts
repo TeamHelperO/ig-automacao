@@ -261,6 +261,10 @@ async function handleMessaging(account: any, messaging: any) {
 }
 
 async function maybeReplyWithAgent(account: any, contact: any, incomingText: string) {
+  // um humano já assumiu essa conversa manualmente — a IA não entra até
+  // alguém reativar (evita a IA e a pessoa da equipe responderem junto)
+  if (contact.ai_paused) return;
+
   const { data: agent } = await supabaseAdmin
     .from("ai_agents")
     .select("*")
@@ -283,6 +287,8 @@ async function maybeReplyWithAgent(account: any, contact: any, incomingText: str
     systemPrompt: agent.system_prompt,
     history: (history ?? []).map((m: any) => ({ direction: m.direction, text: m.text ?? "" })),
     incomingText,
+    maxChars: agent.max_response_chars ?? 300,
+    temperature: agent.temperature ?? 0.7,
   });
 
   if (!reply) return;
@@ -293,7 +299,7 @@ async function maybeReplyWithAgent(account: any, contact: any, incomingText: str
     automationId: null,
     kind: "dm",
     recipient: { id: contact.ig_scoped_id },
-    payload: { text: reply },
+    payload: { text: reply, simulateTyping: agent.simulate_typing ?? true },
   });
 }
 

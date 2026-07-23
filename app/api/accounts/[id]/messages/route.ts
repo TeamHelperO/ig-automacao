@@ -124,6 +124,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       source: "manual",
     });
 
+    // um humano assumiu essa conversa — a IA para de responder esse
+    // contato até alguém reativar
+    await supabaseAdmin.from("contacts").update({ ai_paused: true }).eq("id", contact_id);
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(
@@ -131,4 +135,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       { status: 500 }
     );
   }
+}
+
+// PATCH { contact_id, ai_paused } -> pausa/reativa o agente de IA pra esse contato
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const current = await getCurrentUser();
+  if (!current) return NextResponse.json({ error: "não autenticado" }, { status: 401 });
+
+  const { id: accountId } = await params;
+  const account = await ensureAccountAccess(accountId, current.authUser.id);
+  if (!account) return NextResponse.json({ error: "conta não encontrada" }, { status: 404 });
+
+  const { contact_id, ai_paused } = await req.json();
+  if (!contact_id) return NextResponse.json({ error: "contact_id obrigatório" }, { status: 400 });
+
+  const { error } = await supabaseAdmin
+    .from("contacts")
+    .update({ ai_paused: Boolean(ai_paused) })
+    .eq("id", contact_id)
+    .eq("account_id", accountId);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
 }

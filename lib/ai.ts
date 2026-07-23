@@ -78,11 +78,15 @@ export async function generateAgentReply(params: {
   systemPrompt: string;
   history: { direction: "inbound" | "outbound"; text: string }[];
   incomingText: string;
+  maxChars?: number;
+  temperature?: number;
 }): Promise<string | null> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
 
   const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const maxChars = params.maxChars ?? 300;
+  const temperature = params.temperature ?? 0.7;
 
   const chunks = await searchKnowledge(params.accountId, params.incomingText, 5);
   const context = chunks.length
@@ -91,7 +95,7 @@ export async function generateAgentReply(params: {
 
   const system = `${params.systemPrompt}
 
-Use as informações abaixo, extraídas da base de conhecimento do negócio, para responder com precisão. Se a resposta não estiver nas informações, seja honesto e não invente dados (preços, prazos, políticas). Responda em português do Brasil, de forma natural e breve, como numa conversa de DM do Instagram — nunca use markdown.
+Use as informações abaixo, extraídas da base de conhecimento do negócio, para responder com precisão. Se a resposta não estiver nas informações, seja honesto e não invente dados (preços, prazos, políticas). Responda em português do Brasil, de forma natural e breve, como numa conversa de DM do Instagram — nunca use markdown. Sua resposta precisa ter no máximo ${maxChars} caracteres, sem exceção.
 
 --- BASE DE CONHECIMENTO ---
 ${context}
@@ -116,7 +120,12 @@ ${context}
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({ model, max_tokens: 300, messages }),
+      body: JSON.stringify({
+        model,
+        max_tokens: 300,
+        temperature,
+        messages,
+      }),
       signal: controller.signal,
     });
 
@@ -124,8 +133,14 @@ ${context}
     if (!res.ok) return null;
 
     const data = await res.json();
-    const text: string | undefined = data.choices?.[0]?.message?.content?.trim();
-    return text || null;
+    let text: string | undefined = data.choices?.[0]?.message?.content?.trim();
+    if (!text) return null;
+
+    // rede de segurança: garante o limite mesmo se o modelo ignorar a instrução
+    if (text.length > maxChars) {
+      text = text.slice(0, maxChars - 1).trimEnd() + "…";
+    }
+    return text;
   } catch {
     return null;
   }

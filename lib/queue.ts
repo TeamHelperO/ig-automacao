@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseAdmin } from "./supabase";
-import { sendMessage, replyToComment } from "./instagram";
+import { sendMessage, replyToComment, sendTypingIndicator } from "./instagram";
 import { canAccountSend } from "./access";
 
 const MAX_PER_BATCH = 60;
@@ -154,6 +154,18 @@ export async function drainQueue() {
           item.recipient_type === "comment_id"
             ? { comment_id: item.recipient_value }
             : { id: item.recipient_value };
+
+        if (payload.simulateTyping && "id" in recipient) {
+          await sendTypingIndicator({
+            igUserId: account.ig_user_id,
+            accessToken: account.access_token,
+            recipientId: recipient.id,
+          });
+          const textLen = (payload.text as string)?.length ?? 30;
+          // simula ritmo de digitação (~45 caracteres/segundo), entre 1s e 4s
+          const typingDelayMs = Math.min(4000, Math.max(1000, textLen * 22));
+          await new Promise((r) => setTimeout(r, typingDelayMs));
+        }
 
         await sendMessage({
           igUserId: account.ig_user_id,

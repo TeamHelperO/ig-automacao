@@ -28,12 +28,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const account = await ensureAccountAccess(id, current.authUser.id);
   if (!account) return NextResponse.json({ error: "conta não encontrada" }, { status: 404 });
 
-  const { enabled, system_prompt } = await req.json();
+  const { enabled, system_prompt, max_response_chars, temperature, simulate_typing } = await req.json();
 
   const { data, error } = await supabaseAdmin
     .from("ai_agents")
     .upsert(
-      { account_id: id, enabled, system_prompt, updated_at: new Date().toISOString() },
+      {
+        account_id: id,
+        enabled,
+        system_prompt,
+        max_response_chars: max_response_chars ?? 300,
+        temperature: temperature ?? 0.7,
+        simulate_typing: simulate_typing ?? true,
+        updated_at: new Date().toISOString(),
+      },
       { onConflict: "account_id" }
     )
     .select("*")

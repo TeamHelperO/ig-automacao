@@ -160,6 +160,25 @@ export async function listMedia(params: {
   };
 }
 
+/** Mostra "digitando..." pro destinatário, pra parecer mais natural antes de responder. */
+export async function sendTypingIndicator(params: { igUserId: string; accessToken: string; recipientId: string }) {
+  const url = new URL(`${GRAPH_BASE}/${params.igUserId}/messages`);
+  url.searchParams.set("access_token", params.accessToken);
+
+  try {
+    await fetch(url.toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        recipient: { id: params.recipientId },
+        sender_action: "typing_on",
+      }),
+    });
+  } catch {
+    // não crítico — se falhar, só não mostra o indicador, não trava o envio
+  }
+}
+
 type QuickReplyButton = { title: string; payload: string };
 
 /**

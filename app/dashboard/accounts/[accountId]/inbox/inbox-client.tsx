@@ -9,6 +9,7 @@ type Conversation = {
   ig_scoped_id: string;
   last_message: { text: string; direction: string; created_at: string };
   window_open: boolean;
+  ai_paused: boolean;
 };
 
 type Message = {
@@ -66,6 +67,16 @@ export default function InboxClient() {
     threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  async function toggleAi(conv: Conversation, paused: boolean) {
+    await fetch(`/api/accounts/${params.accountId}/messages`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contact_id: conv.id, ai_paused: paused }),
+    });
+    setSelected((s) => (s ? { ...s, ai_paused: paused } : s));
+    loadConversations();
+  }
+
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     if (!selected || !draft.trim()) return;
@@ -83,6 +94,7 @@ export default function InboxClient() {
     if (res.ok) {
       setDraft("");
       loadThread(selected);
+      setSelected((s) => (s ? { ...s, ai_paused: true } : s));
       loadConversations();
     } else {
       setError(json.error ?? "Erro ao enviar.");
@@ -151,9 +163,20 @@ export default function InboxClient() {
                 </span>
                 {selected.username ? `@${selected.username}` : selected.ig_scoped_id}
               </p>
-              <span className={`pill ${selected.window_open ? "pill-signal" : "pill-neutral"}`}>
-                <span className="pill-dot" /> {selected.window_open ? "janela aberta" : "janela fechada"}
-              </span>
+              <div className="flex items-center gap-2">
+                {selected.ai_paused && (
+                  <button
+                    onClick={() => toggleAi(selected, false)}
+                    className="pill pill-amber"
+                    title="A IA não está respondendo esse contato porque alguém respondeu manualmente"
+                  >
+                    IA pausada · reativar
+                  </button>
+                )}
+                <span className={`pill ${selected.window_open ? "pill-signal" : "pill-neutral"}`}>
+                  <span className="pill-dot" /> {selected.window_open ? "janela aberta" : "janela fechada"}
+                </span>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">

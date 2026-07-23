@@ -19,6 +19,9 @@ export default function AgentClient() {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [maxChars, setMaxChars] = useState(300);
+  const [temperature, setTemperature] = useState(0.7);
+  const [simulateTyping, setSimulateTyping] = useState(true);
 
   const [chunks, setChunks] = useState<KnowledgeChunk[]>([]);
   const [newTitle, setNewTitle] = useState("");
@@ -33,6 +36,9 @@ export default function AgentClient() {
       .then((json) => {
         setEnabled(json.data?.enabled ?? false);
         setSystemPrompt(json.data?.system_prompt ?? "");
+        setMaxChars(json.data?.max_response_chars ?? 300);
+        setTemperature(json.data?.temperature ?? 0.7);
+        setSimulateTyping(json.data?.simulate_typing ?? true);
       })
       .finally(() => setLoading(false));
 
@@ -52,7 +58,13 @@ export default function AgentClient() {
     const res = await fetch(`/api/accounts/${params.accountId}/ai-agent`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled, system_prompt: systemPrompt }),
+      body: JSON.stringify({
+        enabled,
+        system_prompt: systemPrompt,
+        max_response_chars: maxChars,
+        temperature,
+        simulate_typing: simulateTyping,
+      }),
     });
     setSaving(false);
     setSaveMsg(res.ok ? "Salvo." : "Erro ao salvar.");
@@ -142,10 +154,54 @@ export default function AgentClient() {
         <button
           type="button"
           onClick={() => setWizardOpen(true)}
-          className="btn btn-outline text-sm mb-3"
+          className="btn btn-outline text-sm mb-5"
         >
           ✨ Montar prompt com perguntas guiadas
         </button>
+
+        <div className="grid sm:grid-cols-2 gap-4 mb-4 pt-4 border-t border-[var(--border)]">
+          <label className="block">
+            <span className="block text-xs font-medium text-[var(--ink-soft)] mb-1.5">
+              Tamanho máximo da resposta (caracteres)
+            </span>
+            <input
+              type="number"
+              min={50}
+              max={1000}
+              value={maxChars}
+              onChange={(e) => setMaxChars(Number(e.target.value))}
+              className="input"
+            />
+          </label>
+          <label className="block">
+            <span className="block text-xs font-medium text-[var(--ink-soft)] mb-1.5">
+              Temperatura ({temperature.toFixed(1)}) — quanto maior, mais criativa/imprevisível
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.1}
+              value={temperature}
+              onChange={(e) => setTemperature(Number(e.target.value))}
+              className="w-full"
+            />
+            <div className="flex justify-between text-[10px] text-[var(--ink-faint)] mt-1">
+              <span>previsível</span>
+              <span>criativa</span>
+            </div>
+          </label>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm mb-4">
+          <input
+            type="checkbox"
+            checked={simulateTyping}
+            onChange={(e) => setSimulateTyping(e.target.checked)}
+          />
+          Simular "digitando..." antes de enviar (mais natural)
+        </label>
+
         <div className="flex items-center gap-3">
           <button onClick={saveAgent} disabled={saving} className="btn btn-primary">
             {saving ? "Salvando..." : "Salvar"}
