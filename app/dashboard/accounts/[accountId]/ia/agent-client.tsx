@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import PromptWizard from "./prompt-wizard";
 
 type KnowledgeChunk = {
   id: string;
@@ -17,6 +18,7 @@ export default function AgentClient() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const [chunks, setChunks] = useState<KnowledgeChunk[]>([]);
   const [newTitle, setNewTitle] = useState("");
@@ -137,6 +139,13 @@ export default function AgentClient() {
             "Ex: Você é a atendente virtual da Clínica X. Seja educada, breve, e use as informações da base de conhecimento pra responder dúvidas sobre horários, preços e serviços. Nunca invente informação que não esteja na base."
           }
         />
+        <button
+          type="button"
+          onClick={() => setWizardOpen(true)}
+          className="btn btn-outline text-sm mb-3"
+        >
+          ✨ Montar prompt com perguntas guiadas
+        </button>
         <div className="flex items-center gap-3">
           <button onClick={saveAgent} disabled={saving} className="btn btn-primary">
             {saving ? "Salvando..." : "Salvar"}
@@ -203,6 +212,21 @@ export default function AgentClient() {
           </button>
         </form>
       </div>
+
+      {wizardOpen && (
+        <PromptWizard
+          onClose={() => setWizardOpen(false)}
+          onGenerate={(prompt) => {
+            if (
+              !systemPrompt.trim() ||
+              confirm("Isso substitui o prompt atual. Continuar?")
+            ) {
+              setSystemPrompt(prompt);
+            }
+            setWizardOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
