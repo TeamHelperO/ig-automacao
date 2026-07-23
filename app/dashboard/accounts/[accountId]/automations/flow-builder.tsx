@@ -306,7 +306,7 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
       const footerParts: string[] = [];
       if (block.kind === "dm") footerParts.push(`botão: ${block.quick_reply_label}`);
       if (block.kind === "text" || block.kind === "button") {
-        footerParts.push(`${block.delay_minutes} min depois`);
+        footerParts.push(block.delay_minutes === 0 ? "sem atraso" : `${block.delay_minutes} min depois`);
       }
       if (block.kind === "button" && block.link_url) footerParts.push(block.link_button_label);
 
@@ -569,15 +569,29 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
             </>
           )}
           {(editingBlock.kind === "text" || editingBlock.kind === "button") && (
-            <Field label="Atraso (minutos, a partir de quando a pessoa abre a conversa)">
-              <input
-                type="number"
-                min={1}
-                value={editingBlock.delay_minutes}
-                onChange={(e) => updateBlock(editingBlock.id, { delay_minutes: Number(e.target.value) })}
-                className="input"
-              />
-            </Field>
+            <div className="mb-3">
+              <label className="flex items-center gap-2 text-sm mb-2">
+                <input
+                  type="checkbox"
+                  checked={editingBlock.delay_minutes === 0}
+                  onChange={(e) =>
+                    updateBlock(editingBlock.id, { delay_minutes: e.target.checked ? 0 : 60 })
+                  }
+                />
+                Enviar imediatamente (sem atraso)
+              </label>
+              {editingBlock.delay_minutes !== 0 && (
+                <Field label="Atraso (minutos, a partir de quando a pessoa abre a conversa)">
+                  <input
+                    type="number"
+                    min={1}
+                    value={editingBlock.delay_minutes}
+                    onChange={(e) => updateBlock(editingBlock.id, { delay_minutes: Number(e.target.value) })}
+                    className="input"
+                  />
+                </Field>
+              )}
+            </div>
           )}
         </EditModal>
       )}
