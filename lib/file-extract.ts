@@ -13,9 +13,8 @@ export async function extractTextFromFile(params: {
   const ext = params.filename.split(".").pop()?.toLowerCase() ?? "";
 
   if (ext === "pdf") {
-    const { PDFParse } = await import("pdf-parse");
-    const parser = new PDFParse({ data: params.buffer });
-    const result = await parser.getText();
+    const pdfParse = (await import("pdf-parse")).default;
+    const result = await pdfParse(params.buffer);
     return result.text;
   }
 

@@ -16,7 +16,7 @@
     "mammoth": "^1.12.0",
     "mercadopago": "^3.2.0",
     "next": "16.2.10",
-    "pdf-parse": "^2.4.5",
+    "pdf-parse": "^1.1.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.10.0",
@@ -26,6 +26,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
