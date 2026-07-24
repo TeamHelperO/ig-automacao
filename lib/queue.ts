@@ -210,12 +210,23 @@ export async function drainQueue() {
           (payload.text as string | undefined) ??
           (payload.buttonUrl as { text?: string } | undefined)?.text ??
           "";
+
+        const quickReplies = payload.quickReplies as { title: string }[] | undefined;
+        const buttonUrl = payload.buttonUrl as { buttonLabel: string; url: string } | undefined;
+        let buttons: unknown = null;
+        if (quickReplies?.length) {
+          buttons = quickReplies.map((q) => ({ type: "quick_reply", label: q.title }));
+        } else if (buttonUrl) {
+          buttons = [{ type: "link", label: buttonUrl.buttonLabel, url: buttonUrl.url }];
+        }
+
         await supabaseAdmin.from("messages").insert({
           account_id: item.account_id,
           contact_id: item.contact_id,
           direction: "outbound",
           text,
           source: item.automation_id ? "automation" : "ai",
+          buttons,
         });
       }
 

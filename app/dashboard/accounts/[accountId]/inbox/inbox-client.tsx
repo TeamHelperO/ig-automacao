@@ -18,6 +18,7 @@ type Message = {
   text: string;
   source: string;
   created_at: string;
+  buttons: { type: string; label: string; url?: string }[] | null;
 };
 
 export default function InboxClient() {
@@ -193,6 +194,23 @@ export default function InboxClient() {
                     }`}
                   >
                     <p>{m.text}</p>
+                    {m.buttons?.length ? (
+                      <div className="flex flex-wrap gap-1.5 mt-1.5">
+                        {m.buttons.map((b, i) => (
+                          <span
+                            key={i}
+                            className={`inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full border ${
+                              m.direction === "outbound"
+                                ? "border-white/25 text-white/80"
+                                : "border-[var(--border-strong)] text-[var(--ink-soft)]"
+                            }`}
+                          >
+                            🔘 {b.type === "link" ? "link: " : ""}
+                            {b.label}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                     <p
                       className={`text-[10px] mt-1 mono ${
                         m.direction === "outbound" ? "text-white/50" : "text-[var(--ink-faint)]"
