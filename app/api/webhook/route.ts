@@ -133,7 +133,11 @@ async function handleComment(account: any, value: any) {
 
   const commentId: string | undefined = value?.id;
   const commentText: string | undefined = value?.text;
+  // quando o comentário vem da versão impulsionada (anúncio) do post, a
+  // Meta manda um media.id diferente do post orgânico — o post "de
+  // verdade" vem em media.original_media_id nesse caso. Checamos os dois.
   const mediaId: string | undefined = value?.media?.id;
+  const originalMediaId: string | undefined = value?.media?.original_media_id;
   const fromId: string | undefined = value?.from?.id;
   const fromUsername: string | undefined = value?.from?.username;
 
@@ -143,7 +147,12 @@ async function handleComment(account: any, value: any) {
 
   for (const automation of automations) {
     if (!automation.trigger_comment) continue;
-    if (automation.target_media_id && automation.target_media_id !== mediaId) continue;
+    if (
+      automation.target_media_id &&
+      automation.target_media_id !== mediaId &&
+      automation.target_media_id !== originalMediaId
+    )
+      continue;
     if (!matchesKeyword(commentText, automation.keywords, automation.match_type)) continue;
 
     const contact = await upsertContact(account.id, fromId, fromUsername);
