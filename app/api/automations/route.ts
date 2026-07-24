@@ -56,6 +56,8 @@ export async function POST(req: NextRequest) {
       reminder_text: body.reminder_text ?? null,
       reminder_delay_minutes: body.reminder_delay_minutes ?? 60,
       ai_enabled: body.ai_enabled ?? false,
+      public_reply_ai_enabled: body.public_reply_ai_enabled ?? false,
+      dm_ai_enabled: body.dm_ai_enabled ?? false,
       ai_tone: body.ai_tone ?? null,
     })
     .select("*")

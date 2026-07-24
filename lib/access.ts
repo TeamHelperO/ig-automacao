@@ -47,35 +47,55 @@ export async function countMessagesThisMonth(userId: string): Promise<number> {
 }
 
 /**
- * Checagem completa: essa conta pode enviar mensagens agora? Usada pelo
- * motor de fila antes de despachar qualquer envio.
+ * Retorna o status de acesso "estático" da conta (trial e config da cota),
+ * sem checar quanto já foi usado — quem chama decide como controlar o
+ * consumo em tempo real (útil quando se está enviando vários itens numa
+ * mesma leva, pra não estourar a cota checando só 1 vez no início).
  */
-export async function canAccountSend(accountId: string): Promise<{ ok: boolean; reason?: string }> {
+export async function getAccountPlanStatus(accountId: string): Promise<{
+  ok: boolean;
+  reason?: string;
+  maxMessagesPerMonth: number | null;
+  usedThisMonth: number;
+}> {
   const { data: account } = await supabaseAdmin
     .from("accounts")
     .select("user_id")
     .eq("id", accountId)
     .maybeSingle();
-  if (!account) return { ok: false, reason: "conta não encontrada" };
+  if (!account) return { ok: false, reason: "conta não encontrada", maxMessagesPerMonth: null, usedThisMonth: 0 };
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
     .select("*, plans(*)")
     .eq("id", account.user_id)
     .maybeSingle();
-  if (!profile) return { ok: false, reason: "usuário não encontrado" };
+  if (!profile) return { ok: false, reason: "usuário não encontrado", maxMessagesPerMonth: null, usedThisMonth: 0 };
 
   if (isTrialExpired(profile)) {
-    return { ok: false, reason: "trial do plano grátis expirado" };
+    return { ok: false, reason: "trial do plano grátis expirado", maxMessagesPerMonth: null, usedThisMonth: 0 };
   }
 
-  const maxMessages = profile.plans?.max_messages_per_month;
-  if (maxMessages) {
-    const used = await countMessagesThisMonth(account.user_id);
-    if (used >= maxMessages) {
-      return { ok: false, reason: "limite de mensagens do plano atingido neste mês" };
-    }
+  const maxMessagesPerMonth = profile.plans?.max_messages_per_month ?? null;
+  const usedThisMonth = maxMessagesPerMonth ? await countMessagesThisMonth(account.user_id) : 0;
+
+  if (maxMessagesPerMonth && usedThisMonth >= maxMessagesPerMonth) {
+    return {
+      ok: false,
+      reason: "limite de mensagens do plano atingido neste mês",
+      maxMessagesPerMonth,
+      usedThisMonth,
+    };
   }
 
-  return { ok: true };
+  return { ok: true, maxMessagesPerMonth, usedThisMonth };
+}
+
+/**
+ * Checagem completa: essa conta pode enviar mensagens agora? Usada pelo
+ * motor de fila antes de despachar qualquer envio.
+ */
+export async function canAccountSend(accountId: string): Promise<{ ok: boolean; reason?: string }> {
+  const status = await getAccountPlanStatus(accountId);
+  return { ok: status.ok, reason: status.reason };
 }

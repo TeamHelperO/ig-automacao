@@ -168,7 +168,7 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
 
       const loaded: Block[] = [];
 
-      if (a.ai_enabled) {
+      if (a.public_reply_ai_enabled) {
         loaded.push({ ...newBlock("publicReply"), ai_enabled: true, ai_tone: a.ai_tone ?? "" });
       } else {
         for (const text of a.public_replies ?? []) {
@@ -176,12 +176,12 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
         }
       }
 
-      if (a.welcome_dm_text || a.quick_reply_label || a.ai_enabled) {
+      if (a.welcome_dm_text || a.quick_reply_label || a.dm_ai_enabled) {
         loaded.push({
           ...newBlock("dm"),
           text: a.welcome_dm_text ?? "",
           quick_reply_label: a.quick_reply_label ?? "",
-          ai_enabled: a.ai_enabled ?? false,
+          ai_enabled: a.dm_ai_enabled ?? false,
           ai_tone: a.ai_tone ?? "",
         });
       }
@@ -351,8 +351,12 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
     const dmBlock = orderedBlocks.find((b) => b.kind === "dm");
     const stepBlocks = orderedBlocks.filter((b) => b.kind === "text" || b.kind === "button");
 
-    const aiEnabled = publicReplyBlocks.some((b) => b.ai_enabled) || Boolean(dmBlock?.ai_enabled);
-    const aiTone = publicReplyBlocks.find((b) => b.ai_tone)?.ai_tone || dmBlock?.ai_tone || "";
+    const publicReplyAiEnabled = publicReplyBlocks.some((b) => b.ai_enabled);
+    const dmAiEnabled = Boolean(dmBlock?.ai_enabled);
+    const aiTone =
+      (publicReplyAiEnabled && publicReplyBlocks.find((b) => b.ai_enabled)?.ai_tone) ||
+      (dmAiEnabled && dmBlock?.ai_tone) ||
+      "";
 
     const payload: Record<string, unknown> = {
       name,
@@ -365,7 +369,9 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
       public_replies: publicReplyBlocks.filter((b) => !b.ai_enabled).map((b) => b.text),
       welcome_dm_text: dmBlock?.text ?? "",
       quick_reply_label: dmBlock?.quick_reply_label ?? "",
-      ai_enabled: aiEnabled,
+      ai_enabled: publicReplyAiEnabled || dmAiEnabled, // mantido só por compatibilidade
+      public_reply_ai_enabled: publicReplyAiEnabled,
+      dm_ai_enabled: dmAiEnabled,
       ai_tone: aiTone,
       link_url: null,
       link_text: null,

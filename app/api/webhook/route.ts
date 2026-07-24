@@ -168,8 +168,8 @@ async function handleComment(account: any, value: any) {
       windowExpiresAt,
     });
 
-    if (automation.public_replies?.length || automation.ai_enabled) {
-      let text = automation.ai_enabled
+    if (automation.public_replies?.length || automation.public_reply_ai_enabled) {
+      let text = automation.public_reply_ai_enabled
         ? await generateAIReply({
             kind: "public_comment_reply",
             commentText,
@@ -317,7 +317,7 @@ async function buildWelcomePayload(automation: any) {
     ? [{ title: automation.quick_reply_label, payload: `automation:${automation.id}` }]
     : undefined;
 
-  let text = automation.ai_enabled
+  let text = automation.dm_ai_enabled
     ? await generateAIReply({ kind: "welcome_dm", tone: automation.ai_tone ?? undefined })
     : null;
 

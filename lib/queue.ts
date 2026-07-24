@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "./supabase";
 import { sendMessage, replyToComment, sendTypingIndicator } from "./instagram";
-import { canAccountSend } from "./access";
+import { getAccountPlanStatus } from "./access";
 
 const MAX_PER_BATCH = 60;
 const SEND_INTERVAL_MS = 500; // ~2 mensagens por segundo
@@ -66,11 +66,20 @@ export async function drainQueue() {
 
   const accountById = new Map((accounts ?? []).map((a) => [a.id, a]));
   const budgetByAccount = new Map<string, number>();
-  const accessByAccount = new Map<string, { ok: boolean; reason?: string }>();
+  const trialBlockedByAccount = new Map<string, string | undefined>();
+  const quotaRemainingByAccount = new Map<string, number | null>(); // null = sem limite
   for (const accountId of accountIds) {
     const sentLastHour = await countSentLastHour(accountId);
     budgetByAccount.set(accountId, Math.max(0, HOURLY_CAP_PER_ACCOUNT - sentLastHour));
-    accessByAccount.set(accountId, await canAccountSend(accountId));
+
+    const status = await getAccountPlanStatus(accountId);
+    if (!status.ok && status.reason === "trial do plano grátis expirado") {
+      trialBlockedByAccount.set(accountId, status.reason);
+    }
+    quotaRemainingByAccount.set(
+      accountId,
+      status.maxMessagesPerMonth ? Math.max(0, status.maxMessagesPerMonth - status.usedThisMonth) : null
+    );
   }
 
   let sent = 0;
@@ -89,11 +98,21 @@ export async function drainQueue() {
       continue;
     }
 
-    const access = accessByAccount.get(item.account_id);
-    if (access && !access.ok) {
+    const trialBlockedReason = trialBlockedByAccount.get(item.account_id);
+    if (trialBlockedReason) {
       await supabaseAdmin
         .from("queue")
-        .update({ status: "skipped", error: access.reason ?? "bloqueado pelo plano" })
+        .update({ status: "skipped", error: trialBlockedReason })
+        .eq("id", item.id);
+      skipped++;
+      continue;
+    }
+
+    const quotaRemaining = quotaRemainingByAccount.get(item.account_id);
+    if (quotaRemaining !== null && quotaRemaining !== undefined && quotaRemaining <= 0) {
+      await supabaseAdmin
+        .from("queue")
+        .update({ status: "skipped", error: "limite de mensagens do plano atingido neste mês" })
         .eq("id", item.id);
       skipped++;
       continue;
@@ -202,6 +221,12 @@ export async function drainQueue() {
 
       sent++;
       budgetByAccount.set(item.account_id, remaining - 1);
+      if (item.kind !== "public_reply") {
+        const quotaRemaining = quotaRemainingByAccount.get(item.account_id);
+        if (quotaRemaining !== null && quotaRemaining !== undefined) {
+          quotaRemainingByAccount.set(item.account_id, quotaRemaining - 1);
+        }
+      }
     } catch (err) {
       await supabaseAdmin
         .from("queue")
