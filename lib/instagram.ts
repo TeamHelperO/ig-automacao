@@ -182,6 +182,32 @@ export async function sendTypingIndicator(params: { igUserId: string; accessToke
   }
 }
 
+/**
+ * Tenta buscar o nome de exibição de alguém pelo ID (IGSID). Esse endpoint
+ * é documentado oficialmente pro "sabor" da API conectado via Página do
+ * Facebook — não temos garantia de que funciona igual no login direto do
+ * Instagram que usamos. Por isso: tentativa segura, se falhar retorna
+ * null e quem chamar simplesmente não mostra nome nenhum (sem quebrar).
+ */
+export async function tryGetPersonName(params: {
+  igUserId: string;
+  accessToken: string;
+  personIgsid: string;
+}): Promise<string | null> {
+  try {
+    const url = new URL(`${GRAPH_BASE}/${params.personIgsid}`);
+    url.searchParams.set("fields", "name");
+    url.searchParams.set("access_token", params.accessToken);
+
+    const res = await fetch(url.toString());
+    if (!res.ok) return null;
+    const json = await res.json();
+    return typeof json?.name === "string" ? json.name : null;
+  } catch {
+    return null;
+  }
+}
+
 type QuickReplyButton = { title: string; payload: string };
 
 /**

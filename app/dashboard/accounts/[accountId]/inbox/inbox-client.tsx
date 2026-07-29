@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 type Conversation = {
   id: string;
   username: string | null;
+  display_name: string | null;
   ig_scoped_id: string;
   last_message: { text: string; direction: string; created_at: string };
   window_open: boolean;
@@ -136,7 +137,7 @@ export default function InboxClient() {
                       >
                         {c.username ? "💬" : "✉️"}
                       </span>
-                      {c.username ? `@${c.username}` : c.ig_scoped_id}
+                      {c.username ? `@${c.username}` : c.display_name || c.ig_scoped_id}
                     </p>
                     {c.window_open && <span className="pill-dot text-[var(--signal)] shrink-0" />}
                   </div>
@@ -164,7 +165,7 @@ export default function InboxClient() {
                 <span title={selected.username ? "veio de um comentário" : "veio de DM direta"} className="text-xs">
                   {selected.username ? "💬" : "✉️"}
                 </span>
-                {selected.username ? `@${selected.username}` : selected.ig_scoped_id}
+                {selected.username ? `@${selected.username}` : selected.display_name || selected.ig_scoped_id}
               </p>
               <div className="flex items-center gap-2">
                 {selected.ai_paused && (

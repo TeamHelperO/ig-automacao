@@ -61,7 +61,7 @@ export default async function ContatosPage({
                     <span title={c.username ? "veio de um comentário" : "veio de DM direta"} className="text-xs">
                       {c.username ? "💬" : "✉️"}
                     </span>
-                    {c.username ? `@${c.username}` : <span className="mono text-xs">{c.ig_scoped_id}</span>}
+                    {c.username ? `@${c.username}` : c.display_name || <span className="mono text-xs">{c.ig_scoped_id}</span>}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-[var(--ink-soft)]">

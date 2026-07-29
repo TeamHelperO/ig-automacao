@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import { enqueue, drainQueue } from "@/lib/queue";
 import { createTrackedLink, trackedLinkUrl } from "@/lib/shortlink";
 import { generateAIReply, generateAgentReply } from "@/lib/ai";
+import { tryGetPersonName } from "@/lib/instagram";
 
 // ---------------------------------------------------------
 // GET: handshake de verificação do webhook
@@ -109,19 +110,30 @@ function matchesKeyword(text: string, keywords: string[], matchType: string): bo
   });
 }
 
-async function upsertContact(accountId: string, igScopedId: string, username?: string) {
+async function upsertContact(account: any, igScopedId: string, username?: string) {
   const { data: existing } = await supabaseAdmin
     .from("contacts")
     .select("*")
-    .eq("account_id", accountId)
+    .eq("account_id", account.id)
     .eq("ig_scoped_id", igScopedId)
     .maybeSingle();
 
   if (existing) return existing;
 
+  // sem @ (veio de DM direta, não de comentário) — tenta pegar ao menos
+  // o nome de exibição, pra não mostrar só um número no painel
+  let displayName: string | null = null;
+  if (!username && account.access_token && account.ig_user_id) {
+    displayName = await tryGetPersonName({
+      igUserId: account.ig_user_id,
+      accessToken: account.access_token,
+      personIgsid: igScopedId,
+    });
+  }
+
   const { data: created, error } = await supabaseAdmin
     .from("contacts")
-    .insert({ account_id: accountId, ig_scoped_id: igScopedId, username })
+    .insert({ account_id: account.id, ig_scoped_id: igScopedId, username, display_name: displayName })
     .select("*")
     .single();
 
@@ -161,7 +173,7 @@ async function handleComment(account: any, value: any) {
       continue;
     if (!matchesKeyword(commentText, automation.keywords, automation.match_type)) continue;
 
-    const contact = await upsertContact(account.id, fromId, fromUsername);
+    const contact = await upsertContact(account, fromId, fromUsername);
     const windowExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     await enqueue({
@@ -225,7 +237,7 @@ async function handleMessaging(account: any, messaging: any) {
 
   await logEvent(account.id, isStoryReply ? "story_reply" : "message", messaging);
 
-  const contact = await upsertContact(account.id, senderId);
+  const contact = await upsertContact(account, senderId);
 
   const contactUpdate: Record<string, unknown> = {
     last_response_at: new Date().toISOString(),
