@@ -161,6 +161,7 @@ export async function drainQueue() {
 
     try {
       const payload = item.payload as Record<string, unknown>;
+      let sentMessageId: string | undefined;
 
       if (item.kind === "public_reply") {
         await replyToComment({
@@ -186,7 +187,7 @@ export async function drainQueue() {
           await new Promise((r) => setTimeout(r, typingDelayMs));
         }
 
-        await sendMessage({
+        const result = await sendMessage({
           igUserId: account.ig_user_id,
           accessToken: account.access_token,
           recipient,
@@ -198,6 +199,7 @@ export async function drainQueue() {
             | { title: string; payload: string }[]
             | undefined,
         });
+        sentMessageId = result.message_id;
       }
 
       await supabaseAdmin
@@ -227,6 +229,7 @@ export async function drainQueue() {
           text,
           source: item.automation_id ? "automation" : "ai",
           buttons,
+          ig_message_id: sentMessageId ?? null,
         });
       }
 

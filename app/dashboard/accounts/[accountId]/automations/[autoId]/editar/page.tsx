@@ -7,7 +7,7 @@ export default function EditarAutomacaoPage() {
   const params = useParams<{ autoId: string }>();
 
   return (
-    <main className="max-w-5xl mx-auto px-6 py-10">
+    <div>
       <h1 className="font-display text-xl font-medium text-[var(--ink)] mb-1">
         Editar automação
       </h1>
@@ -15,6 +15,6 @@ export default function EditarAutomacaoPage() {
         Clica em cada bloco pra configurar essa etapa.
       </p>
       <FlowBuilder automationId={params.autoId} />
-    </main>
+    </div>
   );
 }

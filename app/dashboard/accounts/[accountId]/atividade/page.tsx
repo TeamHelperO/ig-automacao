@@ -128,7 +128,7 @@ export default async function AtividadePage({
   const hasWarning = tokenWarning || trialExpired || quotaExceeded || (failedLast24h ?? 0) > 0;
 
   return (
-    <div>
+    <div className="max-w-3xl">
       {hasWarning && (
         <div className="card p-4 mb-6 border-[var(--coral)]">
           <p className="text-sm font-medium text-[var(--ink)] mb-2">⚠ Saúde da conta</p>

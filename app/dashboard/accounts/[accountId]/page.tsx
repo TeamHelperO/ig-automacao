@@ -18,7 +18,7 @@ export default async function AccountAutomationsPage({
     .order("created_at", { ascending: false });
 
   return (
-    <div>
+    <div className="max-w-3xl">
       <div className="flex items-center justify-end mb-4">
         <Link
           href={`/dashboard/accounts/${accountId}/automations/nova`}

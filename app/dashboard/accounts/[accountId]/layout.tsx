@@ -1,9 +1,9 @@
 import { getCurrentUser } from "@/lib/supabase-server-auth";
 import { ensureAccountAccess } from "@/lib/ownership";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import AccountSubnav from "./account-subnav";
 
+// A navegação (voltar, avatar/@, abas) já vive na sidebar — esse layout
+// só garante que a pessoa tem acesso à conta antes de mostrar a página.
 export default async function AccountLayout({
   children,
   params,
@@ -16,32 +16,7 @@ export default async function AccountLayout({
   if (!current) return null;
 
   const account = await ensureAccountAccess(accountId, current.authUser.id);
-
   if (!account) redirect("/dashboard");
 
-  return (
-    <main className="max-w-3xl mx-auto px-6 py-10">
-      <Link href="/dashboard" className="text-sm text-[var(--ink-faint)]">
-        ← Todas as contas
-      </Link>
-
-      <div className="flex items-center gap-3 mt-3 mb-6">
-        {account.ig_profile_picture_url && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={account.ig_profile_picture_url}
-            alt=""
-            className="w-11 h-11 rounded-full object-cover"
-          />
-        )}
-        <h1 className="font-display text-2xl font-medium text-[var(--ink)]">
-          @{account.ig_username}
-        </h1>
-      </div>
-
-      <AccountSubnav accountId={accountId} />
-
-      <div className="mt-6">{children}</div>
-    </main>
-  );
+  return <div className="px-8 py-10">{children}</div>;
 }

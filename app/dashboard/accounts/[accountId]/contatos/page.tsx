@@ -36,7 +36,7 @@ export default async function ContatosPage({
   }
 
   return (
-    <div>
+    <div className="max-w-4xl">
       <p className="text-xs text-[var(--ink-faint)] mb-3">
         💬 veio de um comentário (Instagram entrega o @) · ✉️ veio de DM direta (Instagram só
         entrega um ID numérico, sem @ — limitação da própria API)
@@ -47,6 +47,7 @@ export default async function ContatosPage({
             <tr>
               <th className="px-4 py-3">Usuário</th>
               <th className="px-4 py-3">Automação</th>
+              <th className="px-4 py-3">Origem</th>
               <th className="px-4 py-3">1º contato</th>
               <th className="px-4 py-3">Respondeu</th>
               <th className="px-4 py-3">Clicou no link</th>
@@ -65,6 +66,13 @@ export default async function ContatosPage({
                 </td>
                 <td className="px-4 py-3 text-[var(--ink-soft)]">
                   {c.automations?.name ?? "—"}
+                </td>
+                <td className="px-4 py-3 text-[var(--ink-faint)] text-xs">
+                  {c.referral?.source
+                    ? c.referral.source === "ADS"
+                      ? "🎯 anúncio"
+                      : c.referral.source
+                    : "—"}
                 </td>
                 <td className="px-4 py-3 text-[var(--ink-faint)] mono text-xs">
                   {new Date(c.first_contact_at).toLocaleString("pt-BR", {

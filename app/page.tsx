@@ -102,9 +102,11 @@ export default async function Home() {
         </p>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {FEATURES.map((f) => (
-            <div key={f.title} className="card p-6">
-              <span className="text-2xl">{f.icon}</span>
-              <p className="font-medium text-[var(--ink)] mt-3 mb-1.5">{f.title}</p>
+            <div key={f.title} className="card card-interactive p-6">
+              <div className="w-10 h-10 rounded-full bg-[var(--signal-soft)] flex items-center justify-center text-lg mb-3.5">
+                {f.icon}
+              </div>
+              <p className="font-medium text-[var(--ink)] mb-1.5">{f.title}</p>
               <p className="text-sm text-[var(--ink-soft)] leading-relaxed">{f.desc}</p>
             </div>
           ))}
@@ -121,7 +123,7 @@ export default async function Home() {
         </p>
         <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
           {(plans ?? []).map((p) => (
-            <div key={p.id} className="card p-6 flex flex-col">
+            <div key={p.id} className="card card-interactive p-6 flex flex-col">
               <p className="font-medium text-[var(--ink)] mb-1">{p.name}</p>
               <p className="font-display text-3xl text-[var(--ink)] mb-4">
                 R$ {(p.price_cents / 100).toFixed(0)}

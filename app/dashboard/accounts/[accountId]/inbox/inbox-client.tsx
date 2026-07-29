@@ -19,6 +19,8 @@ type Message = {
   source: string;
   created_at: string;
   buttons: { type: string; label: string; url?: string }[] | null;
+  seen_at: string | null;
+  reactions: { emoji: string; at: string }[] | null;
 };
 
 export default function InboxClient() {
@@ -211,6 +213,15 @@ export default function InboxClient() {
                         ))}
                       </div>
                     ) : null}
+                    {m.reactions?.length ? (
+                      <div className="flex gap-1 mt-1.5">
+                        {m.reactions.map((r, i) => (
+                          <span key={i} className="text-sm">
+                            {r.emoji === "love" ? "❤️" : r.emoji === "like" ? "👍" : r.emoji}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                     <p
                       className={`text-[10px] mt-1 mono ${
                         m.direction === "outbound" ? "text-white/50" : "text-[var(--ink-faint)]"
@@ -222,6 +233,7 @@ export default function InboxClient() {
                         minute: "2-digit",
                         timeZone: "America/Sao_Paulo",
                       })}
+                      {m.direction === "outbound" && m.seen_at ? " · visto" : ""}
                     </p>
                   </div>
                 </div>

@@ -72,7 +72,13 @@ async function processWebhookBody(body: any) {
       }
     }
     for (const messaging of entry.messaging ?? []) {
-      await handleMessaging(account, messaging);
+      if (messaging.read) {
+        await handleReadReceipt(account, messaging);
+      } else if (messaging.reaction) {
+        await handleReaction(account, messaging);
+      } else {
+        await handleMessaging(account, messaging);
+      }
     }
   }
 }
@@ -208,17 +214,24 @@ async function handleMessaging(account: any, messaging: any) {
   const isStoryReply = Boolean(message?.reply_to?.story);
   const quickReplyPayload: string | undefined = message?.quick_reply?.payload;
   const text: string | undefined = message?.text;
+  const mid: string | undefined = message?.mid;
+  // origem da conversa (anúncio, link na bio, etc.) — vem só na 1ª mensagem
+  const referral = messaging?.referral ?? message?.referral;
 
   await logEvent(account.id, isStoryReply ? "story_reply" : "message", messaging);
 
   const contact = await upsertContact(account.id, senderId);
 
+  const contactUpdate: Record<string, unknown> = {
+    last_response_at: new Date().toISOString(),
+  };
+  if (referral && !contact.referral) {
+    contactUpdate.referral = referral;
+  }
+
   // qualquer mensagem da pessoa (não só o toque no botão) abre/renova a
   // janela de 24h de verdade, e entra no histórico da caixa de entrada
-  await supabaseAdmin
-    .from("contacts")
-    .update({ last_response_at: new Date().toISOString() })
-    .eq("id", contact.id);
+  await supabaseAdmin.from("contacts").update(contactUpdate).eq("id", contact.id);
 
   if (text) {
     await supabaseAdmin.from("messages").insert({
@@ -227,6 +240,7 @@ async function handleMessaging(account: any, messaging: any) {
       direction: "inbound",
       text,
       source: "user",
+      ig_message_id: mid ?? null,
     });
   }
 
@@ -267,6 +281,58 @@ async function handleMessaging(account: any, messaging: any) {
   if (!matched) {
     await maybeReplyWithAgent(account, contact, text);
   }
+}
+
+// A pessoa leu nossas mensagens até um certo ponto no tempo (watermark).
+// Marca como "visto" todas as mensagens que mandamos pra ela antes disso.
+async function handleReadReceipt(account: any, messaging: any) {
+  const senderId: string | undefined = messaging?.sender?.id;
+  const watermark: number | undefined = messaging?.read?.watermark ?? messaging?.read?.mid;
+  if (!senderId) return;
+
+  const { data: contact } = await supabaseAdmin
+    .from("contacts")
+    .select("id")
+    .eq("account_id", account.id)
+    .eq("ig_scoped_id", senderId)
+    .maybeSingle();
+  if (!contact) return;
+
+  const cutoff = typeof watermark === "number" ? new Date(watermark).toISOString() : new Date().toISOString();
+
+  await supabaseAdmin
+    .from("messages")
+    .update({ seen_at: new Date().toISOString() })
+    .eq("account_id", account.id)
+    .eq("contact_id", contact.id)
+    .eq("direction", "outbound")
+    .is("seen_at", null)
+    .lte("created_at", cutoff);
+}
+
+// A pessoa reagiu (emoji) a uma mensagem nossa específica.
+async function handleReaction(account: any, messaging: any) {
+  const senderId: string | undefined = messaging?.sender?.id;
+  const mid: string | undefined = messaging?.reaction?.mid;
+  const emoji: string | undefined = messaging?.reaction?.reaction;
+  const action: string | undefined = messaging?.reaction?.action; // "react" | "unreact"
+  if (!senderId || !mid) return;
+
+  const { data: message } = await supabaseAdmin
+    .from("messages")
+    .select("id, reactions")
+    .eq("account_id", account.id)
+    .eq("ig_message_id", mid)
+    .maybeSingle();
+  if (!message) return;
+
+  const current: any[] = Array.isArray(message.reactions) ? message.reactions : [];
+  const next =
+    action === "unreact"
+      ? current.filter((r) => r.emoji !== emoji)
+      : [...current.filter((r) => r.emoji !== emoji), { emoji, at: new Date().toISOString() }];
+
+  await supabaseAdmin.from("messages").update({ reactions: next }).eq("id", message.id);
 }
 
 async function maybeReplyWithAgent(account: any, contact: any, incomingText: string) {
