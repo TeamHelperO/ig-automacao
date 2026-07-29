@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/supabase-server-auth";
 import { ensureAccountAccess } from "@/lib/ownership";
+import { checkAccountFeature } from "@/lib/plan-features";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const current = await getCurrentUser();
@@ -29,6 +30,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!account) return NextResponse.json({ error: "conta não encontrada" }, { status: 404 });
 
   const { enabled, system_prompt, max_response_chars, temperature, simulate_typing } = await req.json();
+
+  if (enabled) {
+    const feature = await checkAccountFeature(id, "ai_agent");
+    if (!feature.enabled) {
+      return NextResponse.json(
+        { error: "Agente de IA não está incluído no seu plano — faça upgrade." },
+        { status: 403 }
+      );
+    }
+  }
 
   const { data, error } = await supabaseAdmin
     .from("ai_agents")

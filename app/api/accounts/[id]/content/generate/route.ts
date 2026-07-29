@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/supabase-server-auth";
 import { ensureAccountAccess } from "@/lib/ownership";
 import { listMedia } from "@/lib/instagram";
 import { generateImage } from "@/lib/image-gen";
+import { checkAccountFeature } from "@/lib/plan-features";
 
 async function generateCaption(idea: string, styleNotes: string): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -45,6 +46,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { idea, format, count } = await req.json();
   if (!idea?.trim() || !["feed", "carousel"].includes(format)) {
     return NextResponse.json({ error: "dados incompletos" }, { status: 400 });
+  }
+
+  const feature = await checkAccountFeature(accountId, "content_publish");
+  if (!feature.enabled) {
+    return NextResponse.json(
+      { error: "Postagem automática com IA não está incluída no seu plano — faça upgrade." },
+      { status: 403 }
+    );
+  }
+  if (feature.limit !== null) {
+    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const { count: usedCount } = await supabaseAdmin
+      .from("content_posts")
+      .select("id", { count: "exact", head: true })
+      .eq("account_id", accountId)
+      .in("status", ["ready", "scheduled", "publishing", "published"])
+      .gte("created_at", startOfMonth.toISOString());
+    if ((usedCount ?? 0) >= feature.limit) {
+      return NextResponse.json(
+        { error: `Seu plano permite até ${feature.limit} post(s) por mês. Você já usou esse limite.` },
+        { status: 403 }
+      );
+    }
   }
 
   const imageCount = format === "carousel" ? Math.min(Math.max(Number(count) || 3, 2), 10) : 1;

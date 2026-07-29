@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/supabase-server-auth";
 import { ensureAutomationOwnership } from "@/lib/ownership";
+import { checkAccountFeature } from "@/lib/plan-features";
 
 export async function GET(
   _req: NextRequest,
@@ -32,6 +33,16 @@ export async function PATCH(
   delete body.account_id; // não deixa trocar o dono da automação por aqui
   const steps = body.steps;
   delete body.steps;
+
+  if (body.public_reply_ai_enabled || body.dm_ai_enabled) {
+    const feature = await checkAccountFeature(owned.account.id, "ai_replies");
+    if (!feature.enabled) {
+      return NextResponse.json(
+        { error: "Respostas com IA não estão incluídas no seu plano — faça upgrade." },
+        { status: 403 }
+      );
+    }
+  }
 
   const { data, error } = await supabaseAdmin
     .from("automations")

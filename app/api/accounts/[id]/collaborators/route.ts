@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/supabase-server-auth";
 import { ensureAccountOwnership } from "@/lib/ownership";
+import { checkAccountFeature } from "@/lib/plan-features";
 
 export async function GET(
   _req: NextRequest,
@@ -36,6 +37,26 @@ export async function POST(
 
   const { email } = await req.json();
   if (!email) return NextResponse.json({ error: "email obrigatório" }, { status: 400 });
+
+  const feature = await checkAccountFeature(id, "team");
+  if (!feature.enabled) {
+    return NextResponse.json(
+      { error: "Equipe/colaboradores não está incluído no seu plano — faça upgrade." },
+      { status: 403 }
+    );
+  }
+  if (feature.limit !== null) {
+    const { count } = await supabaseAdmin
+      .from("account_collaborators")
+      .select("id", { count: "exact", head: true })
+      .eq("account_id", id);
+    if ((count ?? 0) >= feature.limit) {
+      return NextResponse.json(
+        { error: `Seu plano permite até ${feature.limit} colaborador(es) por conta.` },
+        { status: 403 }
+      );
+    }
+  }
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")

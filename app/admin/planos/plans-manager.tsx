@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import PlanFeaturesEditor from "./plan-features-editor";
 
 type Plan = {
   id: string;
@@ -26,6 +27,7 @@ export default function PlansManager({ initialPlans }: { initialPlans: Plan[] })
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Plan | null>(null);
+  const [featuresPlanId, setFeaturesPlanId] = useState<string | null>(null);
 
   async function createPlan(e: React.FormEvent) {
     e.preventDefault();
@@ -178,6 +180,12 @@ export default function PlansManager({ initialPlans }: { initialPlans: Plan[] })
                 >
                   {p.active ? "Ativo" : "Inativo"}
                 </button>
+                <button
+                  onClick={() => setFeaturesPlanId(p.id)}
+                  className="btn-ghost text-xs"
+                >
+                  Funcionalidades
+                </button>
                 <button onClick={() => startEdit(p)} className="btn-ghost text-xs">
                   Editar
                 </button>
@@ -248,6 +256,10 @@ export default function PlansManager({ initialPlans }: { initialPlans: Plan[] })
           {saving ? "Criando..." : "Criar plano"}
         </button>
       </form>
+
+      {featuresPlanId && (
+        <PlanFeaturesEditor planId={featuresPlanId} onClose={() => setFeaturesPlanId(null)} />
+      )}
     </div>
   );
 }
