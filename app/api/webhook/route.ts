@@ -211,6 +211,11 @@ async function handleMessaging(account: any, messaging: any) {
   const message = messaging?.message;
   if (!senderId || !message) return;
 
+  // eco: a Meta confirma de volta uma mensagem que A GENTE mandou —
+  // o "remetente" desse eco vem com o ID da própria conta comercial,
+  // não de um contato de verdade. Ignora, senão vira contato fantasma.
+  if (senderId === account.ig_user_id || message?.is_echo) return;
+
   const isStoryReply = Boolean(message?.reply_to?.story);
   const quickReplyPayload: string | undefined = message?.quick_reply?.payload;
   const text: string | undefined = message?.text;
@@ -288,7 +293,7 @@ async function handleMessaging(account: any, messaging: any) {
 async function handleReadReceipt(account: any, messaging: any) {
   const senderId: string | undefined = messaging?.sender?.id;
   const watermark: number | undefined = messaging?.read?.watermark ?? messaging?.read?.mid;
-  if (!senderId) return;
+  if (!senderId || senderId === account.ig_user_id) return;
 
   const { data: contact } = await supabaseAdmin
     .from("contacts")
@@ -316,7 +321,7 @@ async function handleReaction(account: any, messaging: any) {
   const mid: string | undefined = messaging?.reaction?.mid;
   const emoji: string | undefined = messaging?.reaction?.reaction;
   const action: string | undefined = messaging?.reaction?.action; // "react" | "unreact"
-  if (!senderId || !mid) return;
+  if (!senderId || senderId === account.ig_user_id || !mid) return;
 
   const { data: message } = await supabaseAdmin
     .from("messages")
