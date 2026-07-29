@@ -28,7 +28,9 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: `${settings.app_name} — Automação de Instagram`,
     description: "Comentário vira DM, automaticamente.",
-    icons: settings.logo_url ? { icon: settings.logo_url } : undefined,
+    icons: settings.favicon_url || settings.logo_url
+      ? { icon: settings.favicon_url || settings.logo_url! }
+      : undefined,
   };
 }
 

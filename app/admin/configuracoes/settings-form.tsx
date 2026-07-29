@@ -11,6 +11,8 @@ export default function SettingsForm({ initial }: { initial: SystemSettings }) {
   const [accentColor, setAccentColor] = useState(initial.accent_color);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(initial.logo_url);
+  const [faviconFile, setFaviconFile] = useState<File | null>(null);
+  const [faviconPreview, setFaviconPreview] = useState<string | null>(initial.favicon_url);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
 
@@ -19,6 +21,13 @@ export default function SettingsForm({ initial }: { initial: SystemSettings }) {
     if (!file) return;
     setLogoFile(file);
     setLogoPreview(URL.createObjectURL(file));
+  }
+
+  function handleFaviconChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFaviconFile(file);
+    setFaviconPreview(URL.createObjectURL(file));
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -31,6 +40,7 @@ export default function SettingsForm({ initial }: { initial: SystemSettings }) {
     form.set("primary_color", primaryColor);
     form.set("accent_color", accentColor);
     if (logoFile) form.set("logo", logoFile);
+    if (faviconFile) form.set("favicon", faviconFile);
 
     const res = await fetch("/api/admin/settings", { method: "POST", body: form });
     setSaving(false);
@@ -72,8 +82,26 @@ export default function SettingsForm({ initial }: { initial: SystemSettings }) {
           </div>
           <input type="file" accept="image/*" onChange={handleLogoChange} className="input" />
         </div>
-        <p className="text-xs text-[var(--ink-faint)]">
+        <p className="text-xs text-[var(--ink-faint)] mb-4">
           PNG ou SVG com fundo transparente funciona melhor. Até 3MB.
+        </p>
+
+        <span className="block text-xs font-medium text-[var(--ink-soft)] mb-2">
+          Favicon (ícone da aba do navegador)
+        </span>
+        <div className="flex items-center gap-4 mb-1">
+          <div className="w-9 h-9 rounded border border-[var(--border)] bg-[var(--paper)] flex items-center justify-center overflow-hidden shrink-0">
+            {faviconPreview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={faviconPreview} alt="" className="w-full h-full object-contain" />
+            ) : (
+              <span className="text-[9px] text-[var(--ink-faint)]">—</span>
+            )}
+          </div>
+          <input type="file" accept="image/*" onChange={handleFaviconChange} className="input" />
+        </div>
+        <p className="text-xs text-[var(--ink-faint)]">
+          Ideal quadrado (ex: 32x32 ou 64x64px), .ico ou .png. Até 1MB.
         </p>
       </div>
 

@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
   const primaryColor = form.get("primary_color") as string | null;
   const accentColor = form.get("accent_color") as string | null;
   const file = form.get("logo") as File | null;
+  const faviconFile = form.get("favicon") as File | null;
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (appName) update.app_name = appName;
@@ -44,6 +45,26 @@ export async function POST(req: NextRequest) {
 
     const { data: publicUrl } = supabaseAdmin.storage.from("brand").getPublicUrl(path);
     update.logo_url = publicUrl.publicUrl;
+  }
+
+  if (faviconFile && faviconFile.size > 0) {
+    if (faviconFile.size > 1024 * 1024) {
+      return NextResponse.json({ error: "favicon maior que 1MB" }, { status: 400 });
+    }
+    const ext = faviconFile.name.split(".").pop() || "png";
+    const path = `favicon-${Date.now()}.${ext}`;
+    const buffer = Buffer.from(await faviconFile.arrayBuffer());
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from("brand")
+      .upload(path, buffer, { contentType: faviconFile.type, upsert: true });
+
+    if (uploadError) {
+      return NextResponse.json({ error: uploadError.message }, { status: 500 });
+    }
+
+    const { data: publicUrl } = supabaseAdmin.storage.from("brand").getPublicUrl(path);
+    update.favicon_url = publicUrl.publicUrl;
   }
 
   const { data, error } = await supabaseAdmin
