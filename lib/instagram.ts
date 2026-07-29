@@ -290,3 +290,101 @@ export async function replyToComment(params: {
   }
   return json;
 }
+
+// =========================================================
+// Publicação de conteúdo (Feed/Carrossel) — precisa da permissão
+// instagram_business_content_publish, ainda não aprovada pela Meta
+// no momento em que este código foi escrito. As chamadas abaixo vão
+// retornar erro de permissão até a aprovação sair.
+// =========================================================
+
+/** Cria o container de uma imagem única (post de feed) ou item de carrossel. */
+export async function createImageContainer(params: {
+  igUserId: string;
+  accessToken: string;
+  imageUrl: string;
+  caption?: string;
+  isCarouselItem?: boolean;
+}) {
+  const url = new URL(`${GRAPH_BASE}/${params.igUserId}/media`);
+  url.searchParams.set("access_token", params.accessToken);
+  url.searchParams.set("image_url", params.imageUrl);
+  if (params.caption) url.searchParams.set("caption", params.caption);
+  if (params.isCarouselItem) url.searchParams.set("is_carousel_item", "true");
+
+  const res = await fetch(url.toString(), { method: "POST" });
+  const json = await res.json();
+  if (!res.ok) throw new Error(`Falha ao criar container: ${JSON.stringify(json)}`);
+  return json as { id: string };
+}
+
+/** Cria o container "pai" de um carrossel, referenciando os containers filhos. */
+export async function createCarouselContainer(params: {
+  igUserId: string;
+  accessToken: string;
+  childrenIds: string[];
+  caption?: string;
+}) {
+  const url = new URL(`${GRAPH_BASE}/${params.igUserId}/media`);
+  url.searchParams.set("access_token", params.accessToken);
+  url.searchParams.set("media_type", "CAROUSEL");
+  url.searchParams.set("children", params.childrenIds.join(","));
+  if (params.caption) url.searchParams.set("caption", params.caption);
+
+  const res = await fetch(url.toString(), { method: "POST" });
+  const json = await res.json();
+  if (!res.ok) throw new Error(`Falha ao criar carrossel: ${JSON.stringify(json)}`);
+  return json as { id: string };
+}
+
+/** Publica um container já criado (feed, carrossel ou reels). */
+export async function publishContainer(params: {
+  igUserId: string;
+  accessToken: string;
+  creationId: string;
+}) {
+  const url = new URL(`${GRAPH_BASE}/${params.igUserId}/media_publish`);
+  url.searchParams.set("access_token", params.accessToken);
+  url.searchParams.set("creation_id", params.creationId);
+
+  const res = await fetch(url.toString(), { method: "POST" });
+  const json = await res.json();
+  if (!res.ok) throw new Error(`Falha ao publicar: ${JSON.stringify(json)}`);
+  return json as { id: string };
+}
+
+// =========================================================
+// Insights — precisa da permissão instagram_business_manage_insights,
+// mesma observação acima: só funciona depois da aprovação da Meta.
+// =========================================================
+
+export async function getAccountInsights(params: {
+  igUserId: string;
+  accessToken: string;
+}) {
+  const url = new URL(`${GRAPH_BASE}/${params.igUserId}/insights`);
+  url.searchParams.set("metric", "reach,accounts_engaged");
+  url.searchParams.set("period", "day");
+  url.searchParams.set("metric_type", "total_value");
+  url.searchParams.set("access_token", params.accessToken);
+
+  const res = await fetch(url.toString());
+  const json = await res.json();
+  if (!res.ok) throw new Error(`Falha ao buscar insights: ${JSON.stringify(json)}`);
+  return json;
+}
+
+export async function getMediaInsights(params: {
+  mediaId: string;
+  accessToken: string;
+  mediaType?: string;
+}) {
+  const url = new URL(`${GRAPH_BASE}/${params.mediaId}/insights`);
+  url.searchParams.set("metric", "reach,likes,comments,saved,shares");
+  url.searchParams.set("access_token", params.accessToken);
+
+  const res = await fetch(url.toString());
+  const json = await res.json();
+  if (!res.ok) throw new Error(`Falha ao buscar insights do post: ${JSON.stringify(json)}`);
+  return json;
+}

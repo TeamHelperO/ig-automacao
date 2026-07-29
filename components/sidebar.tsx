@@ -12,6 +12,8 @@ const ACCOUNT_TABS = [
   { key: "", label: "Automações", icon: "⚡" },
   { key: "inbox", label: "Inbox", icon: "💬" },
   { key: "ia", label: "IA", icon: "✨" },
+  { key: "conteudo", label: "Conteúdo", icon: "🖼️" },
+  { key: "insights", label: "Insights", icon: "📈" },
   { key: "contatos", label: "Contatos", icon: "👤" },
   { key: "atividade", label: "Atividade", icon: "📊" },
   { key: "equipe", label: "Equipe", icon: "🔑" },
