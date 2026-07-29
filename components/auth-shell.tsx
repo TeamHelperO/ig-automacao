@@ -1,4 +1,5 @@
-import { SignalMark } from "./signal-mark";
+import { BrandMark } from "./brand-mark";
+import { useBrand } from "./brand-provider";
 
 export function AuthShell({
   eyebrow,
@@ -9,12 +10,14 @@ export function AuthShell({
   title: string;
   children: React.ReactNode;
 }) {
+  const { appName, logoUrl } = useBrand();
+
   return (
     <main className="min-h-screen grid lg:grid-cols-[1fr_1.1fr]">
       <section className="app-nav hidden lg:flex flex-col justify-between px-16 py-14">
         <div className="flex items-center gap-2 text-white">
-          <SignalMark size={26} />
-          <span className="font-display text-lg font-medium tracking-tight">Sinal</span>
+          <BrandMark logoUrl={logoUrl} size={26} />
+          <span className="font-display text-lg font-medium tracking-tight">{appName}</span>
         </div>
 
         <div className="max-w-xs">
@@ -32,8 +35,8 @@ export function AuthShell({
       <section className="flex items-center justify-center px-6 py-16 bg-[var(--paper)]">
         <div className="w-full max-w-sm">
           <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <SignalMark size={22} />
-            <span className="font-display text-base font-medium">Sinal</span>
+            <BrandMark logoUrl={logoUrl} size={22} />
+            <span className="font-display text-base font-medium">{appName}</span>
           </div>
           {children}
         </div>

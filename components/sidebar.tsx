@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { SignalMark } from "@/components/signal-mark";
+import { BrandMark } from "@/components/brand-mark";
+import { useBrand } from "@/components/brand-provider";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useRouter } from "next/navigation";
 
@@ -32,6 +33,7 @@ export default function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const { appName, logoUrl } = useBrand();
 
   const accountMatch = pathname.match(/\/dashboard\/accounts\/([^/]+)/);
   const accountId = accountMatch?.[1];
@@ -53,8 +55,8 @@ export default function Sidebar({
   return (
     <aside className="sidebar w-64 shrink-0 min-h-screen flex flex-col py-5">
       <Link href="/dashboard" className="flex items-center gap-2 px-4 mb-7">
-        <SignalMark size={22} />
-        <span className="font-display text-base font-medium tracking-tight">Sinal</span>
+        <BrandMark logoUrl={logoUrl} size={22} />
+        <span className="font-display text-base font-medium tracking-tight">{appName}</span>
       </Link>
 
       {accountId ? (

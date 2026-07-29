@@ -2,22 +2,25 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { SignalMark } from "@/components/signal-mark";
+import { BrandMark } from "@/components/brand-mark";
+import { useBrand } from "@/components/brand-provider";
 
 const ITEMS = [
   { href: "/admin", label: "Usuários", icon: "👤" },
   { href: "/admin/planos", label: "Planos", icon: "💳" },
   { href: "/admin/financeiro", label: "Financeiro", icon: "📈" },
+  { href: "/admin/configuracoes", label: "Configurações", icon: "⚙️" },
 ];
 
 export default function AdminSidebar() {
   const pathname = usePathname();
+  const { appName, logoUrl } = useBrand();
 
   return (
     <aside className="sidebar w-64 shrink-0 min-h-screen flex flex-col py-5">
       <div className="flex items-center gap-2 px-4 mb-1">
-        <SignalMark size={22} />
-        <span className="font-display text-base font-medium tracking-tight">Sinal</span>
+        <BrandMark logoUrl={logoUrl} size={22} />
+        <span className="font-display text-base font-medium tracking-tight">{appName}</span>
       </div>
       <div className="px-4 mb-6">
         <span className="pill pill-amber">super admin</span>

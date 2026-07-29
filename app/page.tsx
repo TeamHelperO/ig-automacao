@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { SignalMark } from "@/components/signal-mark";
+import { BrandMark } from "@/components/brand-mark";
 import { supabaseAdmin } from "@/lib/supabase";
+import { getSystemSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,7 @@ const FEATURES = [
 ];
 
 export default async function Home() {
+  const settings = await getSystemSettings();
   const { data: plans } = await supabaseAdmin
     .from("plans")
     .select("*")
@@ -49,8 +51,8 @@ export default async function Home() {
       {/* nav */}
       <header className="max-w-5xl mx-auto px-6 py-6 flex items-center justify-between">
         <div className="flex items-center gap-2 text-[var(--ink)]">
-          <SignalMark size={24} className="text-[var(--indigo)]" />
-          <span className="font-display text-lg font-medium tracking-tight">Sinal</span>
+          <BrandMark logoUrl={settings.logo_url} size={24} className="text-[var(--indigo)]" />
+          <span className="font-display text-lg font-medium tracking-tight">{settings.app_name}</span>
         </div>
         <div className="flex items-center gap-3">
           <Link href="/login" className="text-sm text-[var(--ink-soft)] hover:text-[var(--ink)]">
@@ -72,7 +74,7 @@ export default async function Home() {
             Toda palavra-chave vira uma conversa automática.
           </h1>
           <p className="text-white/60 text-lg max-w-xl mx-auto mb-10 leading-relaxed">
-            Comentário, resposta a story ou DM com a palavra certa — o Sinal
+            Comentário, resposta a story ou DM com a palavra certa — o {settings.app_name}
             responde na hora, sem depender de mensalidade de ferramenta
             terceira e sem gambiarra que arrisca sua conta.
           </p>
@@ -160,7 +162,7 @@ export default async function Home() {
       </section>
 
       <footer className="max-w-5xl mx-auto px-6 py-8 flex items-center justify-between text-xs text-[var(--ink-faint)]">
-        <span>© {new Date().getFullYear()} Sinal</span>
+        <span>© {new Date().getFullYear()} {settings.app_name}</span>
         <div className="flex gap-4">
           <Link href="/privacidade" className="hover:text-[var(--ink-soft)]">
             Privacidade
