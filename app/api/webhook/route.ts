@@ -6,6 +6,7 @@ import { enqueue, drainQueue } from "@/lib/queue";
 import { createTrackedLink, trackedLinkUrl } from "@/lib/shortlink";
 import { generateAIReply, generateAgentReply } from "@/lib/ai";
 import { tryGetPersonName } from "@/lib/instagram";
+import { checkTokenBudget, logTokenUsage } from "@/lib/plan-features";
 
 // ---------------------------------------------------------
 // GET: handshake de verificação do webhook
@@ -182,18 +183,27 @@ async function handleComment(account: any, value: any) {
       automationId: automation.id,
       kind: "private_reply",
       recipient: { comment_id: commentId },
-      payload: await buildWelcomePayload(automation),
+      payload: await buildWelcomePayload(automation, account.id),
       windowExpiresAt,
     });
 
     if (automation.public_replies?.length || automation.public_reply_ai_enabled) {
-      let text = automation.public_reply_ai_enabled
-        ? await generateAIReply({
+      let text: string | null = null;
+
+      if (automation.public_reply_ai_enabled) {
+        const budget = await checkTokenBudget(account.id, "ai_replies");
+        if (budget.ok) {
+          const result = await generateAIReply({
             kind: "public_comment_reply",
             commentText,
             tone: automation.ai_tone ?? undefined,
-          })
-        : null;
+          });
+          if (result) {
+            text = result.text;
+            await logTokenUsage(account.id, "ai_replies", result.tokens);
+          }
+        }
+      }
 
       if (!text) text = randomFrom(automation.public_replies as string[]) ?? null;
 
@@ -281,7 +291,7 @@ async function handleMessaging(account: any, messaging: any) {
       automationId: automation.id,
       kind: "dm",
       recipient: { id: senderId },
-      payload: await buildWelcomePayload(automation),
+      payload: await buildWelcomePayload(automation, account.id),
     });
 
     await supabaseAdmin
@@ -366,6 +376,9 @@ async function maybeReplyWithAgent(account: any, contact: any, incomingText: str
 
   if (!agent?.system_prompt) return;
 
+  const budget = await checkTokenBudget(account.id, "ai_agent");
+  if (!budget.ok) return; // sem orçamento — melhor não responder do que travar/estourar o plano
+
   const { data: history } = await supabaseAdmin
     .from("messages")
     .select("direction, text")
@@ -374,7 +387,7 @@ async function maybeReplyWithAgent(account: any, contact: any, incomingText: str
     .order("created_at", { ascending: true })
     .limit(20);
 
-  const reply = await generateAgentReply({
+  const result = await generateAgentReply({
     accountId: account.id,
     systemPrompt: agent.system_prompt,
     history: (history ?? []).map((m: any) => ({ direction: m.direction, text: m.text ?? "" })),
@@ -383,7 +396,8 @@ async function maybeReplyWithAgent(account: any, contact: any, incomingText: str
     temperature: agent.temperature ?? 0.7,
   });
 
-  if (!reply) return;
+  if (!result) return;
+  await logTokenUsage(account.id, "ai_agent", result.tokens);
 
   await enqueue({
     accountId: account.id,
@@ -391,18 +405,27 @@ async function maybeReplyWithAgent(account: any, contact: any, incomingText: str
     automationId: null,
     kind: "dm",
     recipient: { id: contact.ig_scoped_id },
-    payload: { text: reply, simulateTyping: agent.simulate_typing ?? true },
+    payload: { text: result.text, simulateTyping: agent.simulate_typing ?? true },
   });
 }
 
-async function buildWelcomePayload(automation: any) {
+async function buildWelcomePayload(automation: any, accountId: string) {
   const quickReplies = automation.quick_reply_label
     ? [{ title: automation.quick_reply_label, payload: `automation:${automation.id}` }]
     : undefined;
 
-  let text = automation.dm_ai_enabled
-    ? await generateAIReply({ kind: "welcome_dm", tone: automation.ai_tone ?? undefined })
-    : null;
+  let text: string | null = null;
+
+  if (automation.dm_ai_enabled) {
+    const budget = await checkTokenBudget(accountId, "ai_replies");
+    if (budget.ok) {
+      const result = await generateAIReply({ kind: "welcome_dm", tone: automation.ai_tone ?? undefined });
+      if (result) {
+        text = result.text;
+        await logTokenUsage(accountId, "ai_replies", result.tokens);
+      }
+    }
+  }
 
   if (!text) text = automation.welcome_dm_text ?? "Oi! Toque no botão abaixo pra continuar 👇";
 

@@ -15,7 +15,7 @@ export async function generateAIReply(params: {
   kind: ReplyKind;
   commentText?: string;
   tone?: string;
-}): Promise<string | null> {
+}): Promise<{ text: string; tokens: number } | null> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
 
@@ -59,7 +59,8 @@ export async function generateAIReply(params: {
 
     const data = await res.json();
     const text: string | undefined = data.choices?.[0]?.message?.content?.trim();
-    return text || null;
+    const tokens: number = data.usage?.total_tokens ?? 0;
+    return text ? { text, tokens } : null;
   } catch {
     return null;
   }
@@ -80,7 +81,7 @@ export async function generateAgentReply(params: {
   incomingText: string;
   maxChars?: number;
   temperature?: number;
-}): Promise<string | null> {
+}): Promise<{ text: string; tokens: number } | null> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
 
@@ -140,7 +141,8 @@ ${context}
     if (text.length > maxChars) {
       text = text.slice(0, maxChars - 1).trimEnd() + "…";
     }
-    return text;
+    const tokens: number = data.usage?.total_tokens ?? 0;
+    return { text, tokens };
   } catch {
     return null;
   }

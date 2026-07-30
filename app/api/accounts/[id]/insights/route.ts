@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase-server-auth";
 import { ensureAccountAccess } from "@/lib/ownership";
 import { getAccountInsights, getMediaInsights, listMedia } from "@/lib/instagram";
-import { checkAccountFeature } from "@/lib/plan-features";
+import { checkInsightsQuota, logInsightsUsage } from "@/lib/plan-features";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const current = await getCurrentUser();
@@ -14,13 +14,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "conta não conectada" }, { status: 404 });
   }
 
-  const feature = await checkAccountFeature(accountId, "insights");
-  if (!feature.enabled) {
-    return NextResponse.json(
-      { error: "Insights não está incluído no seu plano — faça upgrade." },
-      { status: 403 }
-    );
+  const feature = await checkInsightsQuota(accountId);
+  if (!feature.ok) {
+    return NextResponse.json({ error: feature.reason }, { status: 403 });
   }
+  await logInsightsUsage(accountId);
 
   const result: { account: any; posts: any[]; error?: string } = { account: null, posts: [] };
 
