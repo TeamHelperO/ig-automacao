@@ -16,7 +16,7 @@ export function AuthShell({
     <main className="min-h-screen grid lg:grid-cols-[1fr_1.1fr]">
       <section className="app-nav hidden lg:flex flex-col justify-between px-16 py-14">
         <div className="flex items-center gap-2 text-white">
-          <BrandMark logoUrl={logoUrl} size={26} />
+          <BrandMark logoUrl={logoUrl} size={32} />
           <span className="font-display text-lg font-medium tracking-tight">{appName}</span>
         </div>
 
@@ -35,7 +35,7 @@ export function AuthShell({
       <section className="flex items-center justify-center px-6 py-16 bg-[var(--paper)]">
         <div className="w-full max-w-sm">
           <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <BrandMark logoUrl={logoUrl} size={22} />
+            <BrandMark logoUrl={logoUrl} size={26} />
             <span className="font-display text-base font-medium">{appName}</span>
           </div>
           {children}

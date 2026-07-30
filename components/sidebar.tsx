@@ -57,7 +57,7 @@ export default function Sidebar({
   return (
     <aside className="sidebar w-64 shrink-0 min-h-screen flex flex-col py-5">
       <Link href="/dashboard" className="flex items-center gap-2 px-4 mb-7">
-        <BrandMark logoUrl={logoUrl} size={22} />
+        <BrandMark logoUrl={logoUrl} size={28} />
         <span className="font-display text-base font-medium tracking-tight">{appName}</span>
       </Link>
 
