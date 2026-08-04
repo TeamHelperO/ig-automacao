@@ -427,7 +427,7 @@ async function buildWelcomePayload(automation: any, accountId: string) {
     }
   }
 
-  if (!text) text = automation.welcome_dm_text ?? "Oi! Toque no botão abaixo pra continuar 👇";
+  if (!text) text = automation.welcome_dm_text || "Oi! Toque no botão abaixo pra continuar 👇";
 
   return { text, quickReplies };
 }

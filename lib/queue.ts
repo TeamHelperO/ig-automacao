@@ -163,6 +163,12 @@ export async function drainQueue() {
       const payload = item.payload as Record<string, unknown>;
       let sentMessageId: string | undefined;
 
+      // rede de segurança final: nunca manda texto vazio pro Instagram
+      // (a API recusa com "Empty text"), não importa de onde o vazio veio
+      if (typeof payload.text === "string" && !payload.text.trim() && !payload.buttonUrl) {
+        payload.text = "Oi! 👋";
+      }
+
       if (item.kind === "public_reply") {
         await replyToComment({
           commentId: item.recipient_value,
