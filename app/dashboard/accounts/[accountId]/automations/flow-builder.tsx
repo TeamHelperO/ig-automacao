@@ -23,7 +23,7 @@ type Media = {
   thumbnail_url?: string;
 };
 
-type BlockKind = "publicReply" | "dm" | "text" | "button";
+type BlockKind = "publicReply" | "dm" | "text" | "button" | "followup";
 
 type Block = {
   id: string;
@@ -98,6 +98,7 @@ function newBlock(kind: BlockKind): Block {
   if (kind === "publicReply") base.text = "Te mandei no privado! 📩";
   if (kind === "dm") base.text = "Oi! Toque no botão abaixo pra continuar 👇";
   if (kind === "text") base.text = "Ainda dá tempo 😉";
+  if (kind === "followup") base.text = "Ainda por aí? Alguma dúvida? 👋";
   if (kind === "button") {
     base.text = "Aqui está 👇";
     base.delay_minutes = 1;
@@ -110,6 +111,7 @@ const BLOCK_META: Record<BlockKind, { icon: string; title: string }> = {
   dm: { icon: "✉️", title: "Enviar mensagem" },
   text: { icon: "💌", title: "Mensagem de texto" },
   button: { icon: "🔗", title: "Mensagem com botão" },
+  followup: { icon: "🔁", title: "Follow-up" },
 };
 
 const YSTEP = 160;
@@ -308,7 +310,7 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
       const meta = BLOCK_META[block.kind];
       const footerParts: string[] = [];
       if (block.kind === "dm") footerParts.push(`botão: ${block.quick_reply_label}`);
-      if (block.kind === "text" || block.kind === "button") {
+      if (block.kind === "text" || block.kind === "button" || block.kind === "followup") {
         footerParts.push(block.delay_minutes === 0 ? "sem atraso" : `${block.delay_minutes} min depois`);
       }
       if (block.kind === "button" && block.link_url) footerParts.push(block.link_button_label);
@@ -349,7 +351,9 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
 
     const publicReplyBlocks = orderedBlocks.filter((b) => b.kind === "publicReply");
     const dmBlock = orderedBlocks.find((b) => b.kind === "dm");
-    const stepBlocks = orderedBlocks.filter((b) => b.kind === "text" || b.kind === "button");
+    const stepBlocks = orderedBlocks.filter(
+      (b) => b.kind === "text" || b.kind === "button" || b.kind === "followup"
+    );
 
     const publicReplyAiEnabled = publicReplyBlocks.some((b) => b.ai_enabled);
     const dmAiEnabled = Boolean(dmBlock?.ai_enabled);
@@ -578,7 +582,9 @@ export default function FlowBuilder({ automationId }: { automationId?: string })
               </Field>
             </>
           )}
-          {(editingBlock.kind === "text" || editingBlock.kind === "button") && (
+          {(editingBlock.kind === "text" ||
+            editingBlock.kind === "button" ||
+            editingBlock.kind === "followup") && (
             <div className="mb-3">
               <label className="flex items-center gap-2 text-sm mb-2">
                 <input
